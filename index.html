@@ -53,6 +53,13 @@
   .office-tabs{display:flex;gap:4px;background:var(--stone-100);border-radius:10px;padding:4px;margin-bottom:16px;}
   .office-tabs button{flex:1;padding:8px 0;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border-radius:8px;background:none;color:var(--stone-500);}
   .office-tabs button.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1);color:var(--teal-800);}
+  /* Office's own sub-tab bar (Tickets/Register/Invoices/Sales/Customers/Approvals/Users) can have
+     many more items than the 2-button toggle above, so it scrolls horizontally instead of
+     crushing every label down to unreadable width on narrow phone screens. */
+  .office-subtabs{display:flex;gap:4px;background:var(--stone-100);border-radius:10px;padding:4px;margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .office-subtabs::-webkit-scrollbar{display:none;}
+  .office-subtabs button{flex:0 0 auto;white-space:nowrap;padding:8px 14px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border-radius:8px;background:none;color:var(--stone-500);}
+  .office-subtabs button.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1);color:var(--teal-800);}
   .card{border-radius:14px;border:1px solid var(--stone-200);background:#fff;padding:12px;margin-bottom:10px;}
   .card.unreviewed{border-color:#99d8d4;box-shadow:0 0 0 1px var(--teal-100);}
   .pill{display:inline-block;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;padding:2px 9px;border-radius:999px;margin-bottom:5px;}
@@ -1407,7 +1414,7 @@ function renderOffice(container){
         ${myChanges ? `<button data-jump="approvals" class="link-btn" style="font-size:13px;">${myChanges} Customers &amp; Items change${myChanges>1?'s':''} →</button>` : ''}
       </div>
     </div>` : ''}
-    <div class="office-tabs">
+    <div class="office-subtabs">
       <button data-tab="tickets" class="${o.tab==='tickets'?'active':''}">Tickets</button>
       <button data-tab="register" class="${o.tab==='register'?'active':''}">Register</button>
       <button data-tab="billing" class="${o.tab==='billing'?'active':''}">Invoices</button>
