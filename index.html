@@ -1,0 +1,2968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MKL Billing System — Pickup &amp; Delivery</title>
+<style>
+  :root{
+    --teal-900:#0f3d3e; --teal-800:#115e59; --teal-700:#0f766e; --teal-100:#ccfbf1; --teal-50:#f0fdfa;
+    --stone-900:#1c1917; --stone-700:#44403c; --stone-500:#78716c; --stone-400:#a8a29e;
+    --stone-300:#d6d3d1; --stone-200:#e7e5e4; --stone-100:#f5f5f4; --stone-50:#fafaf9;
+    --amber-800:#92400e; --amber-700:#b45309; --amber-100:#fef3c7; --amber-50:#fffbeb;
+    --sky-800:#075985; --sky-700:#0369a1; --sky-100:#e0f2fe;
+    --rose-600:#e11d48; --rose-100:#ffe4e6; --rose-50:#fff1f2;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--stone-50);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--stone-900);}
+  .mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  input,select,textarea{font-family:inherit;}
+  .app{min-height:100vh;}
+  .topbar{background:var(--teal-800);color:var(--teal-100);padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+  .brand-badge{width:34px;height:34px;border-radius:50%;background:var(--teal-50);color:var(--teal-800);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex:none;}
+  .brand-title{font-weight:900;letter-spacing:-.02em;line-height:1;}
+  .brand-sub{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#99d8d4;margin-top:3px;}
+  .nav{display:flex;background:#fff;border-bottom:1px solid var(--stone-200);position:sticky;top:58px;z-index:30;}
+  .nav button{flex:1;padding:12px 0;background:none;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--stone-400);border-bottom:2px solid transparent;}
+  .nav button.active{color:var(--teal-800);border-bottom-color:var(--teal-700);}
+  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 100px;}
+  .ticket-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px dashed var(--stone-300);flex-wrap:wrap;gap:8px;}
+  .eyebrow{font-size:11px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--teal-700);}
+  .title{font-size:26px;font-weight:900;letter-spacing:-.02em;color:var(--stone-900);}
+  .badge-count{font-size:12px;color:var(--stone-400);}
+  .ticket-no-pill{font-size:12px;font-weight:900;background:var(--teal-800);color:#fff;padding:4px 10px;border-radius:999px;}
+  label.field-label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--stone-500);margin-bottom:4px;}
+  .field-input{width:100%;border:1px solid var(--stone-300);border-radius:10px;padding:9px 12px;background:#fff;font-weight:600;font-size:14px;}
+  .row3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px;margin-bottom:16px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+  .mb16{margin-bottom:16px;}
+  .mb4{margin-bottom:4px;}
+  .section-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--stone-500);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+  .btn-primary{background:var(--teal-700);color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:13px;border-radius:12px;box-shadow:0 2px 6px rgba(15,118,110,.25);font-size:14px;}
+  .btn-primary:disabled{opacity:.5;}
+  .btn-outline{background:#fff;color:var(--teal-800);border:2px solid var(--teal-700)!important;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:11px;border-radius:12px;font-size:14px;}
+  .btn-dark{background:var(--stone-900);color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:8px 14px;border-radius:10px;font-size:11px;}
+  .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  textarea.field-input{resize:vertical;}
+  canvas.sigpad{width:100%;height:110px;background:#fff;border-radius:10px;border:2px dashed var(--stone-300);touch-action:none;display:block;}
+  .clear-sig{margin-top:5px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--teal-700);background:none;}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .sig-col label.field-label{margin-bottom:6px;}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--stone-900);color:#fff;font-weight:700;font-size:13px;padding:9px 18px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:80;}
+  .office-tabs{display:flex;gap:4px;background:var(--stone-100);border-radius:10px;padding:4px;margin-bottom:16px;}
+  .office-tabs button{flex:1;padding:8px 0;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border-radius:8px;background:none;color:var(--stone-500);}
+  .office-tabs button.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1);color:var(--teal-800);}
+  .card{border-radius:14px;border:1px solid var(--stone-200);background:#fff;padding:12px;margin-bottom:10px;}
+  .card.unreviewed{border-color:#99d8d4;box-shadow:0 0 0 1px var(--teal-100);}
+  .pill{display:inline-block;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;padding:2px 9px;border-radius:999px;margin-bottom:5px;}
+  .pill.open{background:var(--amber-100);color:var(--amber-800);}
+  .pill.closed{background:var(--teal-100);color:var(--teal-800);}
+  .chip{font-size:11px;background:var(--stone-100);border-radius:6px;padding:2px 6px;margin:2px 3px 0 0;display:inline-block;}
+  .flag-over{color:var(--rose-600);font-weight:800;font-size:12px;margin-top:6px;}
+  .flag-short{color:var(--amber-700);font-weight:800;font-size:12px;margin-top:4px;}
+  .sig-thumb{height:40px;margin-top:4px;border:1px solid var(--stone-100);border-radius:6px;background:#fff;}
+  .reviewed-row{margin-top:8px;font-size:12px;font-weight:700;color:var(--stone-500);display:flex;align-items:center;gap:6px;}
+  table.grid{border-collapse:collapse;width:100%;font-size:12.5px;background:#fff;}
+  table.grid th, table.grid td{padding:6px 7px;border-bottom:1px solid var(--stone-100);border-left:1px solid var(--stone-100);text-align:center;}
+  table.grid th{background:var(--stone-100);font-weight:800;color:var(--stone-500);text-transform:uppercase;letter-spacing:.02em;font-size:10px;white-space:nowrap;}
+  table.grid td.itemname, table.grid th.itemname{text-align:left;font-weight:700;border-left:none;white-space:nowrap;}
+  table.grid td.rowno{color:var(--stone-400);font-weight:700;border-left:none;width:24px;}
+  table.grid tr.cat-row td{background:var(--teal-800);color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;text-align:left;border-left:none;padding:5px 8px;}
+  table.grid input[type=number]{width:56px;min-height:34px;text-align:center;border:1px solid var(--stone-200);border-radius:7px;padding:4px 2px;font-weight:800;font-size:14px;}
+  table.grid input[type=number]:focus{outline:2px solid var(--teal-700);outline-offset:0;border-color:var(--teal-700);}
+  table.grid input[type=text]{width:100%;min-width:110px;border:1px solid var(--stone-200);border-radius:7px;padding:4px 6px;font-size:12px;}
+  td.short-cell{font-weight:800;color:var(--amber-700);}
+  td.over-cell{font-weight:800;color:var(--rose-600);}
+  td.readonly-cell{font-weight:800;background:var(--stone-50);user-select:none;-webkit-user-select:none;cursor:default;}
+  td.short-cell, td.over-cell{user-select:none;-webkit-user-select:none;cursor:default;}
+  .grid-wrap{overflow-x:auto;border:1px solid var(--stone-200);border-radius:14px;margin-bottom:8px;}
+  .legend{font-size:11px;color:var(--stone-400);margin-top:6px;margin-bottom:20px;}
+  table.register{border-collapse:collapse;width:100%;font-size:12px;}
+  table.register th, table.register td{padding:5px 6px;border-left:1px solid var(--stone-100);text-align:center;}
+  table.register thead tr:first-child th{background:var(--stone-100);font-weight:800;color:var(--stone-500);text-transform:uppercase;letter-spacing:.03em;}
+  table.register thead tr:nth-child(2) th{background:var(--stone-50);font-size:9px;color:var(--stone-400);}
+  table.register td.itemname, table.register th.itemname{position:sticky;left:0;background:#fff;text-align:left;font-weight:700;white-space:nowrap;border-left:none;}
+  table.register thead th.itemname{background:var(--stone-100);border-left:none;}
+  .register-wrap{overflow-x:auto;border:1px solid var(--stone-200);border-radius:14px;}
+  .owed-cell2{font-weight:800;border-left:2px solid var(--stone-300)!important;}
+  .owed-pos{color:var(--amber-700);background:var(--amber-50);}
+  .owed-neg{color:var(--rose-600);background:var(--rose-50);}
+  .cust-card{border:1px solid var(--stone-200);border-radius:14px;background:#fff;padding:12px;margin-bottom:10px;}
+  .item-line{display:flex;align-items:center;justify-content:space-between;font-size:13px;background:var(--stone-50);border-radius:6px;padding:5px 8px;margin-bottom:4px;}
+  .additem-row{display:grid;grid-template-columns:1fr 70px 34px;gap:6px;margin-top:6px;}
+  .additem-row input{border:1px solid var(--stone-200);border-radius:6px;padding:5px 8px;font-size:13px;}
+  .additem-row button{background:var(--teal-100);color:var(--teal-800);font-weight:800;padding:0 10px;border-radius:6px;}
+  select.field-input{appearance:auto;}
+  .link-btn{background:none;color:var(--teal-700);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  .empty-note{font-size:13px;color:var(--stone-400);font-style:italic;text-align:center;padding:40px 0;}
+  .age-tag{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--amber-100);color:var(--amber-800);}
+
+  /* ---- print ---- */
+  #print-area{display:none;}
+  @media print{
+    .screen-ui{display:none !important;}
+    #print-area{display:block !important;}
+    body{background:#fff;}
+  }
+  .pt-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #000;padding-bottom:10px;margin-bottom:14px;}
+  .pt-title{font-size:20px;font-weight:900;letter-spacing:-.02em;}
+  .pt-sub{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#555;}
+  .pt-ticketno{font-size:15px;font-weight:900;color:#b91c1c;}
+  .pt-meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;font-size:13px;}
+  .pt-meta div b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#666;font-weight:700;}
+  table.pt-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;}
+  table.pt-table th, table.pt-table td{border:1px solid #999;padding:3px 5px;text-align:center;}
+  table.pt-table th{background:#eee;font-weight:800;text-transform:uppercase;font-size:9px;}
+  table.pt-table td.pt-name{text-align:left;font-weight:700;}
+  table.pt-table tr.pt-cat td{background:#ddd;font-weight:800;text-align:left;text-transform:uppercase;font-size:9.5px;}
+  .pt-sign-block{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:22px;}
+  .pt-sign-col{text-align:center;}
+  .pt-sign-img{height:48px;margin-bottom:2px;}
+  .pt-sign-line{border-top:1px solid #000;margin-top:36px;padding-top:4px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;}
+  .pt-sign-sub{font-size:9px;color:#555;}
+</style>
+</head>
+<body>
+<div id="app" class="app screen-ui"></div>
+<div id="print-area"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* If the SheetJS CDN can't load (offline / blocked), Excel export below
+   falls back to CSV automatically — see exportInvoicesExcel(). *//* ================================================================
+   MKL BILLING SYSTEM — Pickup & Delivery ticket system + Office review
+   Standalone HTML + vanilla JS. No build step, no dependencies.
+
+   Matches the paper "Laundry Pick Up & Delivery" ticket:
+   - Each pickup opens a numbered TICKET with Pickup qty per item.
+   - When that batch is ready, the SAME ticket is completed with
+     Delivery qty. Short/Over = Pickup − Delivery for that ticket.
+   - 4 signatures: Collected By / Pick Up By (at pickup),
+     Delivery By / Received By (at delivery).
+   - Ticket is printable at any stage.
+
+   Persistence: this browser's own localStorage. Fully self-contained —
+   works the moment this file is opened, no server or account setup needed.
+   Trade-off: data stays on this one device/browser, it does not sync
+   between different phones/computers.
+   ================================================================ */
+
+const todayStr = () => new Date().toISOString().slice(0,10);
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const fmtDate = (d) => { if(!d) return '—'; const dt = new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); };
+const esc = (s) => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const padTicket = (n) => String(n).padStart(6,'0');
+function addYears(date, n){ const d = new Date(date); d.setFullYear(d.getFullYear()+n); return d; }
+function generateSecurityKey(){
+  const chunk = () => Math.random().toString(36).slice(2,6).toUpperCase();
+  return `MKL-${chunk()}-${chunk()}-${chunk()}`;
+}
+
+const DEFAULT_SECTIONS = ['Bedroom Linen', 'Bathroom Linen', 'F&B', 'Uniform', 'Others'];
+const DEFAULT_ITEMS_BY_SECTION = {
+  'Bedroom Linen': [['Bed Sheet King',0.35],['Bed Sheet Twin',0.35],['Duvet Cover King',0.45],['Duvet Cover Twin',0.45],
+    ['Pillow Case',0.15],['Blanket',0],['Duvet Inset',2.5],['Pillow',2.5],['Bed Runner',0.15],['Mattress Protector',0.7],['Curtain',6]],
+  'Bathroom Linen': [['Bath Towel',0.25],['Bath Mat',0.15],['Hand Towel',0.15],['Face Towel',0.12],['Bath Robe',0.7],['Shower Curtain',0]],
+  'F&B': [['Chair Cover',0],['Decoration Cloth',0],['Napkin',0],['Table Cloth Square',0],['Table Cloth Round',0],['Cleaning Cloth',0],['Apron',0]],
+  'Uniform': [['Shirt',0],['Trouser',0],['Vest',0],['Skirt',0],['Short',0],['Jacket',0],['Handkerchief',0],['Cap/Hat',0]],
+  'Others': [],
+};
+function buildDefaultItems(){
+  const out = [];
+  DEFAULT_SECTIONS.forEach(sec=>{
+    (DEFAULT_ITEMS_BY_SECTION[sec]||[]).forEach(([name,price])=>{
+      out.push({ id: uid(), name, category: sec, price: price||0, frequent:false, hidden:false });
+    });
+  });
+  return out;
+}
+function buildDefaultCustomer(id, name){
+  return {
+    id, name, sections: [...DEFAULT_SECTIONS], items: buildDefaultItems(),
+    billingType: 'credit', contactName:'', phone:'', address:'', notes:'',
+    paymentTermsDays: 30,
+  };
+}
+const DEFAULT_CUSTOMERS = [
+  buildDefaultCustomer('aquarius', 'Aquarius Hotel'),
+  buildDefaultCustomer('rosewood', 'Rosewood Phnom Penh'),
+  { ...buildDefaultCustomer('kravan', 'Kravan Guesthouse'), billingType: 'cash' },
+];
+
+/* ---------------- storage ---------------- */
+/* Standalone build: everything lives in this browser's own localStorage.
+   No server, no functions, no external accounts — works the moment this
+   single file is opened, including straight from GitHub Pages. The one
+   real trade-off: data stays on THIS device/browser only. It will not
+   sync between different phones/computers — each one keeps its own copy.
+   If you outgrow that, the app can be pointed at a real shared backend
+   (Firebase, or the Netlify Functions version) without changing anything
+   above this point in the file. */
+async function storageGet(key, shared){
+  try{ const v = localStorage.getItem('mkl:'+key); return v!=null ? JSON.parse(v) : null; }catch(e){ return null; }
+}
+async function storageSet(key, value, shared){
+  try{ localStorage.setItem('mkl:'+key, JSON.stringify(value)); return true; }catch(e){ return false; }
+}
+async function storageListKeys(prefix, shared){
+  try{
+    const keys = [];
+    const p = 'mkl:'+(prefix||'');
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf(p)===0) keys.push(k.slice(4));
+    }
+    return keys;
+  }catch(e){ return []; }
+}
+async function storageDelete(key, shared){
+  try{ localStorage.removeItem('mkl:'+key); return true; }catch(e){ return false; }
+}
+
+/* ---------------- global state ---------------- */
+const state = {
+  ready:false,
+  customers: DEFAULT_CUSTOMERS,
+  tickets: {},        // custId -> [ticket,...]
+  ticketCounter: 0,
+  view: 'visit',       // visit | office
+  visitMode: 'new',    // new | deliver (within the one Pickup & Delivery form)
+  pickupForm: null,
+  deliverForm: null,
+  office: { tab:'tickets', statusFilter:'open', custFilter:'all', registerCust:null, registerMonth: todayStr().slice(0,7), billingCust:null, billingMonth: todayStr().slice(0,7), billingDate: todayStr(), billingView:'list', billingFilterCust:'all', billingFilterType:'all', billingFilterFrom:'', billingFilterTo:'', salesMonth: todayStr().slice(0,7) },
+  revealedHidden: {},  // sectionName -> bool, ephemeral UI state for "show hidden items"
+  billingCache: {},    // "custId:month" -> {discount, discountNote, express, expressNote}
+  invoiceNumbers: {},  // "custId:period" -> sequential invoice number (stable once assigned)
+  invoiceCounter: 0,
+  paymentDetails: '',  // global "pay to" instructions shown on printed invoices
+  users: [],           // {id, name, role:'owner'|'admin'|'worker', pin, active}
+  currentUser: null,   // the account this device is logged in as
+  loginPinFor: null,   // id of the user currently entering a PIN on the login screen
+  pendingChanges: [],  // Customers & Items edits awaiting Admin + Owner approval
+  securityKey: null,   // {key, setBy, setAt, expiresAt} — whole-app access key, renews yearly
+  lastManualBackupAt: null, // ISO timestamp of the last "Download backup" click — for the daily reminder
+  toastTimer: null,
+  hasUnsavedDraft: false, // true while Users/Customers & Items has unsaved local edits — background refresh must not wipe them
+};
+
+const DEFAULT_USERS = [
+  { id:'owner1', name:'Owner', role:'owner', pin:'1234', active:true },
+];
+
+
+function currentUserName(){ return state.currentUser ? state.currentUser.name : 'Unnamed'; }
+function freshPickupForm(){
+  return { custId: state.customers[0]?.id || '', date: todayStr(), worker: currentUserName(), qtys:{}, remarks:{}, collectedBy:null, pickUpBy:null };
+}
+function freshDeliverForm(){
+  return { ticketId:null, date: todayStr(), worker: currentUserName(), delivered:{}, remarks:{}, deliveryBy:null, receivedBy:null };
+}
+
+function ticketsFor(custId){ return state.tickets[custId] || []; }
+function allOpenTickets(){
+  const out = [];
+  state.customers.forEach(c=> ticketsFor(c.id).filter(t=>t.status==='open').forEach(t=> out.push({...t, custName:c.name})));
+  out.sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  return out;
+}
+// Simple grouping by first-seen category order — used for TICKET items (already fixed at creation time).
+function groupByCategory(items){
+  const order = []; const map = {};
+  items.forEach(it=>{ const cat = it.category || 'Other'; if(!map[cat]){ map[cat]=[]; order.push(cat); } map[cat].push(it); });
+  return order.map(cat=>({cat, items:map[cat]}));
+}
+// Section-ordered grouping for a customer's live, editable catalog: fixed section order,
+// frequent items bubble to the top of their section, hidden items excluded unless revealed.
+function sectionGroupsForCustomer(customer, {includeHidden=true, sortFrequent=true, skipEmpty=false}={}){
+  const sections = customer.sections && customer.sections.length ? customer.sections : DEFAULT_SECTIONS;
+  return sections.map(sec=>{
+    let items = customer.items.filter(it=> (it.category||'Others')===sec);
+    const visible = items.filter(it=> includeHidden || !it.hidden);
+    const hidden = items.filter(it=> it.hidden);
+    const sortFn = (a,b)=> (b.frequent?1:0)-(a.frequent?1:0);
+    return {
+      cat: sec,
+      items: sortFrequent ? [...visible].sort(sortFn) : visible,
+      hiddenItems: sortFrequent ? [...hidden].sort(sortFn) : hidden,
+    };
+  }).filter(g=> !skipEmpty || g.items.length>0 || g.hiddenItems.length>0);
+}
+
+async function saveCustomers(next){ state.customers = next; await storageSet('customers', next, true); }
+async function saveUsers(next){
+  state.users = next;
+  await storageSet('users', next, true);
+  // keep the live session in sync if the logged-in user's own record changed (e.g. PIN)
+  if(state.currentUser){
+    const me = next.find(u=>u.id===state.currentUser.id);
+    if(me) state.currentUser = me;
+  }
+}
+async function savePendingChanges(next){ state.pendingChanges = next; await storageSet('pendingChanges', next, true); }
+async function renewSecurityKey(customKey){
+  const next = {
+    key: (customKey && customKey.trim()) || generateSecurityKey(),
+    setBy: currentUserName(),
+    setAt: new Date().toISOString(),
+    expiresAt: addYears(new Date(), 1).toISOString(),
+  };
+  state.securityKey = next;
+  await storageSet('securityKey', next, true);
+  return next;
+}
+async function saveTicketCounter(next){ state.ticketCounter = next; await storageSet('ticketCounter', next, true); }
+async function saveTickets(custId, next){
+  state.tickets[custId] = next;
+  await storageSet('tickets:'+custId, next, true);
+}
+async function addTicket(custId, ticket){
+  const cur = ticketsFor(custId);
+  await saveTickets(custId, [...cur, ticket]);
+}
+async function updateTicket(custId, ticketId, patch){
+  const cur = ticketsFor(custId);
+  const next = cur.map(t=> t.id===ticketId ? {...t, ...patch} : t);
+  await saveTickets(custId, next);
+}
+
+function showToast(msg){
+  let t = document.getElementById('toast');
+  if(t) t.remove();
+  t = document.createElement('div');
+  t.id='toast'; t.className='toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(()=> t.remove(), 2200);
+}
+
+/* ---------------- init ---------------- */
+async function init(){
+  let c = await storageGet('customers', true);
+  const isBrandNewStore = !c;
+  if(!c){ c = DEFAULT_CUSTOMERS; await storageSet('customers', c, true); }
+  // migrate any older/incomplete customer records to the new shape
+  let migrated = false;
+  c = c.map(cust=>{
+    let next = cust;
+    if(!cust.sections || !cust.items){
+      migrated = true;
+      next = { ...next, sections: cust.sections || [...DEFAULT_SECTIONS], items: cust.items || buildDefaultItems() };
+    }
+    if(!next.billingType){
+      migrated = true;
+      next = { ...next, billingType: 'credit', contactName: next.contactName||'', phone: next.phone||'', address: next.address||'', notes: next.notes||'' };
+    }
+    if(next.paymentTermsDays==null){
+      migrated = true;
+      next = { ...next, paymentTermsDays: 30 };
+    }
+    return next;
+  });
+  if(migrated) await storageSet('customers', c, true);
+  state.customers = c;
+
+  let counter = await storageGet('ticketCounter', true);
+  if(counter==null){ counter = 0; await storageSet('ticketCounter', counter, true); }
+  state.ticketCounter = counter;
+
+  state.invoiceNumbers = (await storageGet('invoiceNumbers', true)) || {};
+  state.invoiceCounter = (await storageGet('invoiceCounter', true)) || 0;
+  state.paymentDetails = (await storageGet('paymentDetails', true)) || '';
+
+  let users = await storageGet('users', true);
+  if(!users || !users.length){ users = DEFAULT_USERS; await storageSet('users', users, true); }
+  state.users = users;
+  state.pendingChanges = (await storageGet('pendingChanges', true)) || [];
+
+  let secKey = await storageGet('securityKey', true);
+  if(!secKey){
+    secKey = { key: generateSecurityKey(), setBy:'System', setAt: new Date().toISOString(), expiresAt: addYears(new Date(), 1).toISOString() };
+    await storageSet('securityKey', secKey, true);
+  }
+  state.securityKey = secKey;
+
+  state.lastManualBackupAt = await storageGet('lastManualBackupAt', true);
+
+  // "who is this device logged in as" is PERSONAL storage (shared:false) —
+  // each phone/computer stays logged in as its own worker, not shared with others.
+  const curId = await storageGet('currentUserId', false);
+  if(curId){
+    const found = state.users.find(u=> u.id===curId && u.active!==false);
+    if(found) state.currentUser = found;
+  }
+
+  for(const cust of c){
+    const t = await storageGet('tickets:'+cust.id, true);
+    state.tickets[cust.id] = t || [];
+  }
+
+  state.pickupForm = freshPickupForm();
+  state.deliverForm = freshDeliverForm();
+  state.office.registerCust = c[0]?.id || null;
+  state.office.billingCust = c[0]?.id || null;
+
+  // only auto-seed demo data on a genuinely brand-new store — never after an
+  // intentional factory reset, which leaves customers as an explicit empty array
+  if(isBrandNewStore){ await seedDemoData(); }
+
+  state.ready = true;
+  render();
+
+  // fire in the background — don't hold up the UI while this runs
+  runAutoBackupIfNeeded();
+  startPolling();
+}
+
+/* ---------------- live sync across devices ---------------- */
+/* Every device polls the shared data every ~12s, and immediately whenever
+   the tab regains focus, so a PIN change, a new ticket, or an approval on
+   one device shows up on every other device without anyone refreshing.
+   Skips the re-render (but still updates the underlying data) if the person
+   is actively typing, so nobody's half-finished entry gets yanked away. */
+let pollTimer = null;
+function startPolling(){
+  if(pollTimer) return;
+  pollTimer = setInterval(refreshSharedData, 12000);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshSharedData(); });
+  window.addEventListener('focus', refreshSharedData);
+}
+
+async function refreshSharedData(){
+  if(!state.ready || !state.currentUser) return;
+  try{
+    const [users, customers, pendingChanges, securityKey, paymentDetails, invoiceNumbers, invoiceCounter, ticketCounter, lastManualBackupAt] = await Promise.all([
+      storageGet('users', true),
+      storageGet('customers', true),
+      storageGet('pendingChanges', true),
+      storageGet('securityKey', true),
+      storageGet('paymentDetails', true),
+      storageGet('invoiceNumbers', true),
+      storageGet('invoiceCounter', true),
+      storageGet('ticketCounter', true),
+      storageGet('lastManualBackupAt', true),
+    ]);
+    const custList = customers || state.customers;
+    const ticketsByCust = {};
+    for(const c of custList){ ticketsByCust[c.id] = (await storageGet('tickets:'+c.id, true)) || []; }
+
+    const snapshot = JSON.stringify({ users, customers, pendingChanges, securityKey, paymentDetails, invoiceNumbers, invoiceCounter, ticketCounter, lastManualBackupAt, ticketsByCust });
+    if(snapshot === state._lastPollSnapshot) return; // nothing changed anywhere — skip re-render entirely
+    state._lastPollSnapshot = snapshot;
+
+    if(users) state.users = users;
+    if(customers) state.customers = customers;
+    if(pendingChanges) state.pendingChanges = pendingChanges;
+    if(securityKey) state.securityKey = securityKey;
+    if(paymentDetails!=null) state.paymentDetails = paymentDetails;
+    if(invoiceNumbers) state.invoiceNumbers = invoiceNumbers;
+    if(invoiceCounter!=null) state.invoiceCounter = invoiceCounter;
+    if(ticketCounter!=null) state.ticketCounter = ticketCounter;
+    if(lastManualBackupAt!=null) state.lastManualBackupAt = lastManualBackupAt;
+    state.tickets = ticketsByCust;
+
+    if(state.currentUser){
+      const me = state.users.find(u=>u.id===state.currentUser.id);
+      if(me) state.currentUser = me;
+      else { await logoutUser(); return; } // this account was removed elsewhere — log out
+    }
+
+    const active = document.activeElement;
+    const appEl = document.getElementById('app');
+    const isTyping = active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName) && appEl && appEl.contains(active);
+    if(!isTyping && !state.hasUnsavedDraft) render();
+  }catch(e){ /* transient network hiccup — next poll will catch up */ }
+}
+
+/* ---------------- demo data ---------------- */
+function findItem(cust, name){ return cust.items.find(it=> it.name===name); }
+function demoLine(cust, name, pickupQty, deliveryQty, remarks){
+  const it = findItem(cust, name);
+  if(!it) return null;
+  return { itemId: it.id, name: it.name, category: it.category, pickupQty, deliveryQty: deliveryQty==null?0:deliveryQty, remarks: remarks||'' };
+}
+function demoTicket(ticketNo, date, deliveredDate, items, opts){
+  opts = opts || {};
+  return {
+    id: uid(), ticketNo, date, worker: opts.worker || 'Sokha',
+    items: items.filter(Boolean),
+    status: deliveredDate ? 'closed' : 'open',
+    collectedBy: null, pickUpBy: null,
+    deliveryBy: null, receivedBy: null,
+    deliveredDate: deliveredDate || null,
+    deliveryWorker: deliveredDate ? (opts.deliveryWorker || 'Sarath') : null,
+    createdAt: new Date(date+'T09:00:00').toISOString(),
+    deliveredAt: deliveredDate ? new Date(deliveredDate+'T15:00:00').toISOString() : null,
+    reviewed: false, approvals: [], demo: true,
+  };
+}
+
+async function seedDemoData(){
+  let custs = state.customers;
+
+  // make sure we have 2 credit + 1 cash customer to seed into
+  let credit = custs.filter(c=> c.billingType!=='cash');
+  let cash = custs.filter(c=> c.billingType==='cash');
+  let changed = false;
+  while(credit.length < 2){
+    const nc = buildDefaultCustomer(uid(), credit.length===0 ? 'Aquarius Hotel' : 'Rosewood Phnom Penh');
+    custs = [...custs, nc]; credit.push(nc); changed = true;
+  }
+  if(cash.length < 1){
+    const nc = { ...buildDefaultCustomer(uid(), 'Kravan Guesthouse'), billingType:'cash' };
+    custs = [...custs, nc]; cash.push(nc); changed = true;
+  }
+  if(changed){ state.customers = custs; await saveCustomers(custs); }
+
+  const [custA, custB] = credit;   // 2 credit customers
+  const custC = cash[0];           // 1 cash customer
+  let n = state.ticketCounter;
+
+  // --- Credit customer A: pickups/deliveries across the month, incl. Short + Over ---
+  const aTickets = [
+    demoTicket(++n, '2026-08-03', '2026-08-04', [
+      demoLine(custA, 'Bed Sheet King', 10, 10),
+      demoLine(custA, 'Pillow Case', 20, 20),
+      demoLine(custA, 'Bath Towel', 15, 15),
+    ]),
+    demoTicket(++n, '2026-08-06', '2026-08-07', [
+      demoLine(custA, 'Bath Towel', 18, 15, '2 torn, 1 missing — short 3'),
+      demoLine(custA, 'Hand Towel', 12, 12),
+    ]),
+    demoTicket(++n, '2026-08-10', '2026-08-11', [
+      demoLine(custA, 'Pillow Case', 10, 12, 'Found 2 extra from a previous batch — over 2'),
+      demoLine(custA, 'Bed Sheet Twin', 8, 8),
+    ]),
+  ];
+
+  // --- Credit customer B: pickups/deliveries across the month, incl. Short + Over, + one still open ---
+  const bTickets = [
+    demoTicket(++n, '2026-08-02', '2026-08-03', [
+      demoLine(custB, 'Duvet Cover King', 6, 6),
+      demoLine(custB, 'Face Towel', 25, 25),
+    ]),
+    demoTicket(++n, '2026-08-05', '2026-08-06', [
+      demoLine(custB, 'Hand Towel', 30, 26, '4 stained beyond repair, discarded — short 4'),
+    ]),
+    demoTicket(++n, '2026-08-08', '2026-08-09', [
+      demoLine(custB, 'Bath Mat', 10, 11, '1 extra counted at delivery — over 1'),
+    ]),
+    demoTicket(++n, '2026-08-12', null, [
+      demoLine(custB, 'Bed Sheet King', 12, 0),
+    ]),
+  ];
+
+  // --- Cash customer: 2 same-day sales, paid at delivery ---
+  const cTickets = [
+    demoTicket(++n, '2026-08-09', '2026-08-09', [
+      demoLine(custC, 'Bath Towel', 10, 10),
+      demoLine(custC, 'Hand Towel', 10, 10),
+    ]),
+    demoTicket(++n, '2026-08-12', '2026-08-12', [
+      demoLine(custC, 'Bed Sheet Twin', 6, 6),
+      demoLine(custC, 'Pillow Case', 6, 6),
+    ]),
+  ];
+
+  await saveTickets(custA.id, [...ticketsFor(custA.id), ...(ticketsFor(custA.id).some(t=>t.demo) ? [] : aTickets)]);
+  await saveTickets(custB.id, [...ticketsFor(custB.id), ...(ticketsFor(custB.id).some(t=>t.demo) ? [] : bTickets)]);
+  await saveTickets(custC.id, [...ticketsFor(custC.id), ...(ticketsFor(custC.id).some(t=>t.demo) ? [] : cTickets)]);
+  await saveTicketCounter(n);
+}
+
+/* ---------------- full backup / restore ---------------- */
+async function buildBackup(){
+  const ticketsByCustomer = {};
+  state.customers.forEach(c=>{ ticketsByCustomer[c.id] = ticketsFor(c.id); });
+
+  const billingKeys = await storageListKeys('billing:', true);
+  const billingAdjustments = {};
+  for(const k of billingKeys){
+    const val = await storageGet(k, true);
+    if(val) billingAdjustments[k.replace(/^billing:/,'')] = val;
+  }
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    customers: state.customers,
+    ticketsByCustomer,
+    ticketCounter: state.ticketCounter,
+    invoiceNumbers: state.invoiceNumbers,
+    invoiceCounter: state.invoiceCounter,
+    paymentDetails: state.paymentDetails,
+    billingAdjustments,
+    users: state.users,
+    pendingChanges: state.pendingChanges,
+  };
+}
+
+async function downloadBackup(){
+  const data = await buildBackup();
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `mekong_laundry_backup_${todayStr()}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  const now = new Date().toISOString();
+  state.lastManualBackupAt = now;
+  await storageSet('lastManualBackupAt', now, true);
+}
+
+async function restoreBackupData(data, confirmMsg){
+  if(!data || !Array.isArray(data.customers)){
+    showToast("This doesn't look like a Mekong Laundry backup");
+    return false;
+  }
+  if(!confirm(confirmMsg)) return false;
+
+  await storageSet('customers', data.customers, true);
+  for(const custId in (data.ticketsByCustomer||{})){
+    await storageSet('tickets:'+custId, data.ticketsByCustomer[custId], true);
+  }
+  if(data.ticketCounter!=null) await storageSet('ticketCounter', data.ticketCounter, true);
+  if(data.invoiceNumbers) await storageSet('invoiceNumbers', data.invoiceNumbers, true);
+  if(data.invoiceCounter!=null) await storageSet('invoiceCounter', data.invoiceCounter, true);
+  if(data.paymentDetails!=null) await storageSet('paymentDetails', data.paymentDetails, true);
+  for(const key in (data.billingAdjustments||{})){
+    await storageSet('billing:'+key, data.billingAdjustments[key], true);
+  }
+  if(Array.isArray(data.users) && data.users.length) await storageSet('users', data.users, true);
+  if(Array.isArray(data.pendingChanges)) await storageSet('pendingChanges', data.pendingChanges, true);
+
+  // clear in-memory caches so the reload below reads the restored data, not stale copies
+  state.billingCache = {};
+  state.tickets = {};
+  state.ready = false;
+  render();
+  await init();
+  showToast('Backup restored');
+  return true;
+}
+
+async function restoreBackup(file){
+  let data;
+  try{
+    data = JSON.parse(await file.text());
+  }catch(e){
+    showToast('That file is not valid — could not read it as a backup');
+    return;
+  }
+  const summary = data && Array.isArray(data.customers)
+    ? `${data.customers.length} customer(s), exported ${data.exportedAt ? fmtDate(data.exportedAt.slice(0,10)) : 'unknown date'}`
+    : '';
+  await restoreBackupData(data, `Restore this backup?\n\n${summary}\n\nThis will REPLACE all current customers, tickets, invoices, and settings on this link. This cannot be undone.`);
+}
+
+async function restoreFromAutoBackup(dateStr){
+  const data = await storageGet('autobackup:'+dateStr, true);
+  if(!data){ showToast('That automatic backup is no longer available'); return; }
+  await restoreBackupData(data, `Restore the automatic backup from ${fmtDate(dateStr)}?\n\nThis will REPLACE all current customers, tickets, invoices, and settings on this link with how things looked on that day. This cannot be undone.`);
+}
+
+async function dismissBackupAlertToday(){
+  const now = new Date().toISOString();
+  state.lastManualBackupAt = now;
+  await storageSet('lastManualBackupAt', now, true);
+}
+
+/* Owner-only: permanently wipes all business data and every Admin/Worker
+   account, keeping only the Owner performing the reset. Does NOT touch the
+   security key. Requires two separate confirmations before it runs. */
+async function factoryReset(){
+  const ownerUser = state.currentUser;
+  if(!ownerUser || ownerUser.role!=='owner') return;
+
+  const oldCustomers = state.customers;
+  await storageSet('customers', [], true);
+  for(const c of oldCustomers){ await storageDelete('tickets:'+c.id, true); }
+  await storageSet('ticketCounter', 0, true);
+  await storageSet('invoiceNumbers', {}, true);
+  await storageSet('invoiceCounter', 0, true);
+  await storageSet('paymentDetails', '', true);
+  const billingKeys = await storageListKeys('billing:', true);
+  for(const k of billingKeys){ await storageDelete(k, true); }
+  await storageSet('pendingChanges', [], true);
+  await storageSet('users', [ownerUser], true);
+  await storageSet('lastManualBackupAt', null, true);
+
+  state.billingCache = {};
+  state.tickets = {};
+  state.ready = false;
+  render();
+  await init();
+}
+
+/* Runs once per day (whenever someone has the app open that day) — saves a
+   full snapshot inside this app's own storage as a safety net. This is NOT a
+   substitute for downloading a backup file somewhere external: if the
+   hosted link itself is ever lost, these in-app snapshots are lost with it. */
+async function runAutoBackupIfNeeded(){
+  const today = todayStr();
+  const key = 'autobackup:'+today;
+  const already = await storageGet(key, true);
+  if(already) return;
+  const data = await buildBackup();
+  await storageSet(key, data, true);
+  // keep the most recent 14 daily snapshots, prune older ones
+  const keys = await storageListKeys('autobackup:', true);
+  const dates = keys.map(k=>k.replace('autobackup:','')).sort();
+  const toDelete = dates.slice(0, Math.max(0, dates.length-14));
+  for(const d of toDelete){ await storageDelete('autobackup:'+d, true); }
+}
+
+
+/* ================= RENDER SHELL ================= */
+/* ---------------- pending-approval counts (for reminders) ---------------- */
+function myPendingTicketApprovals(){
+  if(!state.currentUser || (state.currentUser.role!=='admin' && state.currentUser.role!=='owner')) return 0;
+  let count = 0;
+  state.customers.forEach(c=>{
+    ticketsFor(c.id).forEach(t=>{
+      const approvals = t.approvals || [];
+      if(approvals.length<2 && !approvals.some(a=>a.byId===state.currentUser.id)) count++;
+    });
+  });
+  return count;
+}
+function myPendingChangeApprovals(){
+  if(!state.currentUser) return 0;
+  if(state.currentUser.role==='admin') return state.pendingChanges.filter(p=> p.status==='pending_admin_approval' && p.proposedBy!==currentUserName()).length;
+  if(state.currentUser.role==='owner') return state.pendingChanges.filter(p=> p.status==='pending_owner_approval').length;
+  return 0;
+}
+function backupDueToday(){
+  if(!state.currentUser || (state.currentUser.role!=='admin' && state.currentUser.role!=='owner')) return false;
+  if(!state.lastManualBackupAt) return true;
+  return state.lastManualBackupAt.slice(0,10) !== todayStr();
+}
+
+function render(){
+  const app = document.getElementById('app');
+  if(!state.ready){
+    app.innerHTML = '<div style="min-height:300px;display:flex;align-items:center;justify-content:center;color:var(--stone-400)" class="mono">loading ledger…</div>';
+    return;
+  }
+  if(!state.currentUser){ renderLogin(app); return; }
+
+  const keyExpired = state.securityKey && new Date() > new Date(state.securityKey.expiresAt);
+  if(keyExpired){ renderSecurityLock(app); return; }
+
+  const role = state.currentUser.role;
+  const canSeeOffice = role==='owner' || role==='admin';
+  if(state.view==='office' && !canSeeOffice) state.view = 'visit';
+
+  const myTicketApprovals = myPendingTicketApprovals();
+  const myChangeApprovals = myPendingChangeApprovals();
+  const myTotalApprovals = myTicketApprovals + myChangeApprovals;
+  const backupAlert = backupDueToday();
+
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="brand-badge">ML</div>
+      <div style="flex:1;">
+        <div class="brand-title">MKL BILLING SYSTEM</div>
+        <div class="brand-sub">Pickup &amp; Delivery · Inventory Control</div>
+      </div>
+      <button id="topbar-user" style="background:none;color:var(--teal-50);text-align:right;font-size:11px;">
+        <div style="font-weight:800;">${esc(state.currentUser.name)}</div>
+        <div style="text-transform:uppercase;letter-spacing:.05em;color:#99d8d4;">${role} · switch ↓</div>
+      </button>
+    </div>
+    <div class="nav">
+      <button data-nav="visit" class="${state.view==='visit'?'active':''}">Pickup &amp; Delivery</button>
+      ${canSeeOffice ? `<button data-nav="office" class="${state.view==='office'?'active':''}" style="position:relative;">Office${myTotalApprovals?` <span class="mono" style="display:inline-block;background:var(--rose-600);color:#fff;font-size:10px;font-weight:900;border-radius:999px;padding:1px 6px;margin-left:3px;">${myTotalApprovals}</span>`:''}${backupAlert?` <span class="mono" style="display:inline-block;background:var(--amber-700);color:#fff;font-size:10px;font-weight:900;border-radius:999px;padding:1px 6px;margin-left:3px;">!</span>`:''}</button>` : ''}
+    </div>
+    <div class="wrap" id="content"></div>
+  `;
+  app.querySelectorAll('[data-nav]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.view = b.dataset.nav; render(); });
+  });
+  app.querySelector('#topbar-user').addEventListener('click', logoutUser);
+  const content = document.getElementById('content');
+  if(state.view==='visit') renderVisitForm(content);
+  else renderOffice(content);
+}
+
+/* ---------------- login / accounts ---------------- */
+function deviceLabel(){
+  const ua = navigator.userAgent || '';
+  let os = 'Unknown device';
+  if(/iPad/i.test(ua)) os = 'iPad';
+  else if(/iPhone/i.test(ua)) os = 'iPhone';
+  else if(/Android/i.test(ua)) os = /Mobile/i.test(ua) ? 'Android phone' : 'Android tablet';
+  else if(/Windows/i.test(ua)) os = 'Windows';
+  else if(/Macintosh/i.test(ua)) os = 'Mac';
+  else if(/Linux/i.test(ua)) os = 'Linux';
+  let browser = 'browser';
+  if(/Edg\//i.test(ua)) browser = 'Edge';
+  else if(/Chrome\//i.test(ua) && !/Edg/i.test(ua)) browser = 'Chrome';
+  else if(/Firefox\//i.test(ua)) browser = 'Firefox';
+  else if(/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+  return `${browser} on ${os}`;
+}
+
+async function loginAs(userId, pin){
+  const u = state.users.find(x=>x.id===userId && x.active!==false);
+  if(!u) return false;
+  if((u.pin||'') !== (pin||'')) return false;
+  const updated = state.users.map(x=> x.id===u.id ? { ...x, lastDevice: deviceLabel(), lastLoginAt: new Date().toISOString() } : x);
+  state.users = updated;
+  await storageSet('users', updated, true);
+  state.currentUser = updated.find(x=>x.id===u.id);
+  await storageSet('currentUserId', u.id, false); // personal — this device only
+  render();
+  return true;
+}
+async function logoutUser(){
+  state.currentUser = null;
+  state.loginPinFor = null;
+  state.hasUnsavedDraft = false;
+  await storageSet('currentUserId', '', false);
+  render();
+}
+
+function renderLogin(app){
+  const active = state.users.filter(u=> u.active!==false);
+  const pinUser = active.find(u=> u.id===state.loginPinFor);
+
+  app.innerHTML = `
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--stone-50);">
+      <div style="width:100%;max-width:340px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <div class="brand-badge" style="width:48px;height:48px;font-size:18px;margin:0 auto 10px;background:var(--teal-800);color:#fff;">ML</div>
+          <div style="font-weight:900;font-size:20px;letter-spacing:-.02em;">MKL BILLING SYSTEM</div>
+          <div style="font-size:11px;color:var(--stone-400);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;">Who's using this?</div>
+        </div>
+
+        ${!pinUser ? `
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            ${active.map(u=>`
+              <button data-selectuser="${u.id}" class="cust-card" style="text-align:left;display:flex;align-items:center;justify-content:space-between;margin-bottom:0;">
+                <span style="font-weight:800;">${esc(u.name)}</span>
+                <span class="pill ${u.role==='owner'?'closed':u.role==='admin'?'open':''}" style="margin-bottom:0;${u.role==='worker'?'background:var(--stone-100);color:var(--stone-500);':''}">${u.role}</span>
+              </button>`).join('')}
+          </div>
+          ${active.length===0 ? `<div class="empty-note">No accounts set up yet.</div>` : ''}
+        ` : `
+          <div class="cust-card">
+            <div style="font-weight:800;margin-bottom:10px;text-align:center;">${esc(pinUser.name)}</div>
+            <label class="field-label">Enter PIN</label>
+            <input id="login-pin" type="password" inputmode="numeric" pattern="[0-9]*" class="field-input mono" style="text-align:center;font-size:20px;letter-spacing:.2em;" autofocus />
+            <div id="login-error" style="color:var(--rose-600);font-size:12px;font-weight:700;margin-top:6px;min-height:16px;"></div>
+            <div class="btn-row" style="margin-top:10px;">
+              <button id="login-back" class="btn-outline">Back</button>
+              <button id="login-submit" class="btn-primary">Log in</button>
+            </div>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  if(!pinUser){
+    app.querySelectorAll('[data-selectuser]').forEach(b=> b.addEventListener('click', ()=>{
+      state.loginPinFor = b.dataset.selectuser;
+      renderLogin(app);
+    }));
+  } else {
+    const pinInput = app.querySelector('#login-pin');
+    const tryLogin = async () => {
+      const ok = await loginAs(pinUser.id, pinInput.value);
+      if(!ok){
+        app.querySelector('#login-error').textContent = 'Incorrect PIN';
+        pinInput.value = '';
+        pinInput.focus();
+      }
+    };
+    pinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
+    app.querySelector('#login-submit').addEventListener('click', tryLogin);
+    app.querySelector('#login-back').addEventListener('click', ()=>{ state.loginPinFor = null; renderLogin(app); });
+    pinInput.focus();
+  }
+}
+
+function renderSecurityLock(app){
+  const isOwner = state.currentUser.role==='owner';
+  const expired = fmtDate(state.securityKey.expiresAt.slice(0,10));
+
+  app.innerHTML = `
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--stone-50);">
+      <div style="width:100%;max-width:360px;">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div class="brand-badge" style="width:48px;height:48px;font-size:18px;margin:0 auto 10px;background:var(--amber-700);color:#fff;">!</div>
+          <div style="font-weight:900;font-size:18px;">Security key expired</div>
+          <div style="font-size:12px;color:var(--stone-400);margin-top:2px;">Expired ${expired}</div>
+        </div>
+
+        ${isOwner ? `
+          <div class="cust-card">
+            <div style="font-size:12px;color:var(--stone-500);margin-bottom:10px;">This app's security key renews yearly. As Owner, you can renew it now — either generate a new one automatically, or type your own.</div>
+            <label class="field-label">Custom key (optional — leave blank to auto-generate)</label>
+            <input id="sec-newkey" type="text" class="field-input mono" placeholder="e.g. MKL-2027-XXXX" />
+            <button id="sec-renew" class="btn-primary" style="width:100%;margin-top:12px;">Renew for 1 year</button>
+          </div>
+        ` : `
+          <div class="cust-card" style="text-align:center;">
+            <div style="font-size:13px;color:var(--stone-600);margin-bottom:10px;">Access is locked until the Owner renews the security key. Ask the Owner to log in and renew it.</div>
+            <button id="sec-switch" class="btn-outline" style="width:100%;">Switch user</button>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  if(isOwner){
+    app.querySelector('#sec-renew').addEventListener('click', async ()=>{
+      const custom = app.querySelector('#sec-newkey').value;
+      await renewSecurityKey(custom);
+      showToast('Security key renewed for 1 year');
+      render();
+    });
+  } else {
+    app.querySelector('#sec-switch').addEventListener('click', logoutUser);
+  }
+}
+
+
+/* ---------------- one form, two modes (mirrors the paper ticket) ---------------- */
+function renderVisitForm(container){
+  state.hasUnsavedDraft = false; // leaving Office abandons any unsaved Users/Customers draft
+  const mode = state.visitMode || 'new';
+  container.innerHTML = `
+    <div class="office-tabs" style="margin-bottom:20px;">
+      <button data-mode="new" class="${mode==='new'?'active':''}">New pickup</button>
+      <button data-mode="deliver" class="${mode==='deliver'?'active':''}">Complete a delivery</button>
+    </div>
+    <div id="visit-body"></div>
+  `;
+  container.querySelectorAll('[data-mode]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.visitMode = b.dataset.mode; renderVisitForm(container); });
+  });
+  const body = document.getElementById('visit-body');
+  if(mode==='new') renderNewPickup(body);
+  else renderDeliver(body);
+}
+
+/* ---------------- signature pad ---------------- */
+function setupSignaturePad(canvas, clearBtn, onChange){
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio;
+  canvas.height = canvas.clientHeight * ratio;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(ratio, ratio);
+  ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#1c1917';
+  let drawing = false, hasInk = false;
+  const pos = (e) => { const r = canvas.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; return {x:t.clientX-r.left, y:t.clientY-r.top}; };
+  const start = (e) => { e.preventDefault(); drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); };
+  const move = (e) => { if(!drawing) return; e.preventDefault(); const p = pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); hasInk = true; };
+  const end = () => { if(!drawing) return; drawing = false; if(hasInk) onChange(canvas.toDataURL('image/png')); };
+  canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move);
+  canvas.addEventListener('mouseup', end); canvas.addEventListener('mouseleave', end);
+  canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
+  clearBtn.addEventListener('click', ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); hasInk=false; onChange(null); });
+}
+
+/* ================= NEW PICKUP VIEW ================= */
+function renderNewPickup(container){
+  const f = state.pickupForm;
+  const customer = state.customers.find(c=>c.id===f.custId);
+  const total = Object.values(f.qtys).reduce((a,b)=>a+(b||0),0);
+  const nextNo = state.ticketCounter + 1;
+
+  container.innerHTML = `
+    <div class="ticket-header">
+      <div><div class="eyebrow">Field entry — start a new ticket</div><div class="title">New Pickup</div></div>
+      <div class="ticket-no-pill mono">No. ${padTicket(nextNo)}</div>
+    </div>
+    <div class="row3">
+      <div>
+        <label class="field-label">Customer</label>
+        <select id="np-cust" class="field-input">
+          ${state.customers.map(c=>`<option value="${c.id}" ${c.id===f.custId?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Date</label>
+        <input id="np-date" type="date" class="field-input mono" value="${f.date}" />
+      </div>
+      <div>
+        <label class="field-label">Worker</label>
+        <div class="field-input" style="background:var(--stone-50);font-weight:700;">${esc(f.worker)}</div>
+      </div>
+    </div>
+
+    <div class="section-label">
+      <span>Items collected</span>
+      <span class="badge-count mono">${total} items</span>
+    </div>
+    <div class="grid-wrap"><div id="np-table"></div></div>
+
+    <div class="mb16">
+      <div class="sig-grid">
+        <div class="sig-col">
+          <label class="field-label">Collected by — Mekong Laundry</label>
+          <canvas id="np-sig1" class="sigpad"></canvas>
+          <button type="button" id="np-sig1-clear" class="clear-sig">Clear</button>
+        </div>
+        <div class="sig-col">
+          <label class="field-label">Pick up by — Customer</label>
+          <canvas id="np-sig2" class="sigpad"></canvas>
+          <button type="button" id="np-sig2-clear" class="clear-sig">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="np-print" type="button" class="btn-outline">Print ticket</button>
+      <button id="np-submit" class="btn-primary">Save pickup</button>
+    </div>
+  `;
+
+  renderPickupTable(customer);
+
+  container.querySelector('#np-cust').addEventListener('change', e=>{ f.custId = e.target.value; f.qtys={}; f.remarks={}; renderNewPickup(container); });
+  container.querySelector('#np-date').addEventListener('input', e=> f.date = e.target.value);
+
+  setupSignaturePad(container.querySelector('#np-sig1'), container.querySelector('#np-sig1-clear'), (d)=> f.collectedBy = d);
+  setupSignaturePad(container.querySelector('#np-sig2'), container.querySelector('#np-sig2-clear'), (d)=> f.pickUpBy = d);
+
+  container.querySelector('#np-print').addEventListener('click', ()=>{
+    buildPrintTicket({
+      ticketNo: nextNo, date: f.date, customerName: customer?.name || '', stage:'pickup',
+      items: buildTicketItemsFromForm(customer, f), collectedBy: f.collectedBy, pickUpBy: f.pickUpBy, deliveryBy:null, receivedBy:null, deliveredDate:null,
+    });
+    window.print();
+  });
+
+  container.querySelector('#np-submit').addEventListener('click', async ()=>{
+    const liveTotal = Object.values(f.qtys).reduce((a,b)=>a+(b||0),0);
+    if(liveTotal===0){ showToast('Enter at least one item count'); return; }
+    if(!f.collectedBy || !f.pickUpBy){ showToast('Both signatures are required'); return; }
+    const btn = container.querySelector('#np-submit');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const ticketNo = state.ticketCounter + 1;
+    const ticket = {
+      id: uid(), ticketNo, date: f.date, worker: f.worker.trim()||'Unnamed',
+      items: buildTicketItemsFromForm(customer, f),
+      status: 'open',
+      collectedBy: f.collectedBy, pickUpBy: f.pickUpBy,
+      deliveryBy: null, receivedBy: null, deliveredDate: null, deliveryWorker:null,
+      createdAt: new Date().toISOString(), deliveredAt: null, reviewed: false, approvals: [],
+    };
+    await addTicket(f.custId, ticket);
+    await saveTicketCounter(ticketNo);
+    showToast(`Ticket ${padTicket(ticketNo)} saved — ${liveTotal} items picked up`);
+    state.pickupForm = freshPickupForm();
+    state.pickupForm.custId = f.custId;
+    renderNewPickup(container);
+  });
+}
+
+function buildTicketItemsFromForm(customer, f){
+  return customer.items.filter(it => (f.qtys[it.id]||0) > 0).map(it => ({
+    itemId: it.id, name: it.name, category: it.category,
+    pickupQty: f.qtys[it.id]||0, deliveryQty: 0, remarks: (f.remarks[it.id]||'').trim(),
+  }));
+}
+
+function renderPickupTable(customer){
+  const f = state.pickupForm;
+  const box = document.getElementById('np-table');
+  const groups = sectionGroupsForCustomer(customer, {includeHidden:false, sortFrequent:true, skipEmpty:true});
+  let rowNo = 0;
+
+  const itemRowHtml = (it) => {
+    rowNo++;
+    const q = f.qtys[it.id]||0;
+    return `
+      <tr data-row="${it.id}">
+        <td class="rowno">${rowNo}</td>
+        <td class="itemname">${it.frequent?'★ ':''}${esc(it.name)}</td>
+        <td><input type="number" inputmode="numeric" pattern="[0-9]*" class="mono numcell" data-q="${it.id}" value="${q}" min="0" /></td>
+        <td class="mono readonly-cell" title="Filled in later, when this ticket is delivered">–</td>
+        <td class="mono short-cell" title="Filled in later, when this ticket is delivered">–</td>
+        <td class="mono over-cell" title="Filled in later, when this ticket is delivered">–</td>
+        <td><input type="text" data-remark="${it.id}" value="${esc(f.remarks[it.id]||'')}" placeholder="—" /></td>
+      </tr>`;
+  };
+
+  const bodyHtml = groups.map(({cat, items, hiddenItems})=>{
+    const catRow = `<tr class="cat-row"><td colspan="6">${esc(cat)}</td><td style="text-align:right;">${hiddenItems.length ? `<button type="button" class="reveal-toggle" data-reveal="${esc(cat)}" style="background:none;color:#fff;font-weight:700;font-size:9.5px;text-transform:none;letter-spacing:0;text-decoration:underline;">${state.revealedHidden[cat] ? 'Hide items' : `+ ${hiddenItems.length} more item${hiddenItems.length>1?'s':''}`}</button>` : ''}</td></tr>`;
+    const rows = items.map(itemRowHtml).join('');
+    const hiddenRows = state.revealedHidden[cat] ? hiddenItems.map(itemRowHtml).join('') : '';
+    return catRow + rows + hiddenRows;
+  }).join('');
+
+  box.innerHTML = `
+    <table class="grid">
+      <thead><tr><th class="rowno">No</th><th class="itemname">Item</th><th>Pick&nbsp;Up</th><th>Delivery</th><th>Short</th><th>Over</th><th>Remarks</th></tr></thead>
+      <tbody>${bodyHtml || '<tr><td colspan="7" style="text-align:center;color:var(--stone-400);font-style:italic;padding:20px;">No items configured for this customer yet — add some in Office → Customers &amp; Items.</td></tr>'}</tbody>
+    </table>`;
+
+  attachNumericBehavior(box);
+
+  box.querySelectorAll('[data-reveal]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const cat = btn.dataset.reveal;
+    state.revealedHidden[cat] = !state.revealedHidden[cat];
+    renderPickupTable(customer);
+  }));
+  box.querySelectorAll('[data-q]').forEach(inp=> inp.addEventListener('input', ()=>{
+    f.qtys[inp.dataset.q] = Math.max(0, parseInt(inp.value||'0',10));
+    const total = Object.values(f.qtys).reduce((a,b)=>a+(b||0),0);
+    const bc = document.querySelector('.badge-count'); if(bc) bc.textContent = total+' items';
+  }));
+  box.querySelectorAll('[data-remark]').forEach(inp=> inp.addEventListener('input', ()=>{ f.remarks[inp.dataset.remark]=inp.value; }));
+}
+
+function attachNumericBehavior(box){
+  box.querySelectorAll('input.numcell').forEach(inp=>{
+    inp.addEventListener('focus', ()=> inp.select());
+    inp.addEventListener('click', ()=> inp.select());
+  });
+}
+
+/* ================= DELIVER VIEW ================= */
+function renderDeliver(container){
+  const f = state.deliverForm;
+  const openTickets = allOpenTickets();
+  const ticket = openTickets.find(t=>t.id===f.ticketId) || null;
+  const customer = ticket ? state.customers.find(c=>c.id===ticket.custId || c.name===ticket.custName) : null;
+  // find owning customer id properly
+  let custId = null;
+  if(ticket){
+    for(const c of state.customers){ if(ticketsFor(c.id).some(t=>t.id===ticket.id)){ custId = c.id; break; } }
+  }
+
+  container.innerHTML = `
+    <div class="ticket-header">
+      <div><div class="eyebrow">Field entry — complete an open ticket</div><div class="title">Deliver</div></div>
+      ${ticket ? `<div class="ticket-no-pill mono">No. ${padTicket(ticket.ticketNo)}</div>` : ''}
+    </div>
+
+    <div class="mb16">
+      <label class="field-label">Open ticket</label>
+      <select id="dl-ticket" class="field-input">
+        <option value="">${openTickets.length ? 'Select a ticket to deliver…' : 'No open tickets'}</option>
+        ${openTickets.map(t=>{
+          const age = Math.max(0, Math.round((new Date(f.date)-new Date(t.date))/86400000));
+          return `<option value="${t.id}" ${t.id===f.ticketId?'selected':''}>#${padTicket(t.ticketNo)} · ${esc(t.custName)} · picked up ${fmtDate(t.date)} (${age}d ago)</option>`;
+        }).join('')}
+      </select>
+    </div>
+
+    <div id="dl-body">${ticket ? '' : `<div class="empty-note">Pick an open ticket above to record its delivery.</div>`}</div>
+  `;
+
+  container.querySelector('#dl-ticket').addEventListener('change', e=>{
+    f.ticketId = e.target.value || null;
+    f.delivered = {}; f.remarks = {};
+    if(f.ticketId){
+      const t = openTickets.find(x=>x.id===f.ticketId);
+      if(t) t.items.forEach(it=>{ f.remarks[it.itemId] = it.remarks || ''; });
+    }
+    renderDeliver(container);
+  });
+
+  if(!ticket) return;
+
+  const body = document.getElementById('dl-body');
+  body.innerHTML = `
+    <div class="row3">
+      <div><label class="field-label">Customer</label><div class="field-input" style="background:var(--stone-50);">${esc(ticket.custName)}</div></div>
+      <div><label class="field-label">Delivery date</label><input id="dl-date" type="date" class="field-input mono" value="${f.date}" /></div>
+      <div><label class="field-label">Worker</label><div class="field-input" style="background:var(--stone-50);font-weight:700;">${esc(f.worker)}</div></div>
+    </div>
+
+    <div class="section-label"><span>Items on ticket #${padTicket(ticket.ticketNo)} — picked up ${fmtDate(ticket.date)}</span></div>
+    <div class="grid-wrap"><div id="dl-table"></div></div>
+    <div class="legend">
+      <span style="color:var(--amber-700);font-weight:800;">Short</span> = picked up but not delivered (pickup − delivery, positive).
+      <span style="color:var(--rose-600);font-weight:800;">Over</span> = delivered more than was picked up on this ticket.
+      ${ticket.packedAt ? `Amounts last saved by <b>${esc(ticket.packedBy||'—')}</b> on ${fmtDate(ticket.packedDate)}.` : 'Enter the delivery amounts as soon as they\'re known — e.g. when the goods are loaded onto the truck. Signatures aren\'t needed until the goods reach the customer and are checked.'}
+    </div>
+
+    <div class="btn-row mb16">
+      <button id="dl-print" type="button" class="btn-outline">Print ticket</button>
+      <button id="dl-saveamounts" type="button" class="btn-outline">Save amounts only</button>
+    </div>
+
+    <div class="section-label"><span>At the door — delivery confirmed &amp; signed</span></div>
+    <div class="mb16">
+      <div class="sig-grid">
+        <div class="sig-col">
+          <label class="field-label">Delivery by — Mekong Laundry</label>
+          <canvas id="dl-sig1" class="sigpad"></canvas>
+          <button type="button" id="dl-sig1-clear" class="clear-sig">Clear</button>
+        </div>
+        <div class="sig-col">
+          <label class="field-label">Received by — Customer</label>
+          <canvas id="dl-sig2" class="sigpad"></canvas>
+          <button type="button" id="dl-sig2-clear" class="clear-sig">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="dl-submit" class="btn-primary" style="grid-column:1/-1;">Confirm delivery (sign)</button>
+    </div>
+  `;
+
+  renderDeliverTable(ticket);
+
+  body.querySelector('#dl-date').addEventListener('input', e=> f.date = e.target.value);
+
+  setupSignaturePad(body.querySelector('#dl-sig1'), body.querySelector('#dl-sig1-clear'), (d)=> f.deliveryBy = d);
+  setupSignaturePad(body.querySelector('#dl-sig2'), body.querySelector('#dl-sig2-clear'), (d)=> f.receivedBy = d);
+
+  body.querySelector('#dl-print').addEventListener('click', ()=>{
+    buildPrintTicket({
+      ticketNo: ticket.ticketNo, date: ticket.date, customerName: ticket.custName, stage:'delivered',
+      items: mergeDeliverItems(ticket, f),
+      collectedBy: ticket.collectedBy, pickUpBy: ticket.pickUpBy, deliveryBy: f.deliveryBy, receivedBy: f.receivedBy, deliveredDate: f.date,
+    });
+    window.print();
+  });
+
+  body.querySelector('#dl-saveamounts').addEventListener('click', async ()=>{
+    const items = mergeDeliverItems(ticket, f);
+    const btn = body.querySelector('#dl-saveamounts');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    await updateTicket(custId, ticket.id, {
+      items, packedBy: f.worker.trim()||'Unnamed', packedDate: f.date, packedAt: new Date().toISOString(),
+    });
+    const dTotal = items.reduce((a,i)=>a+i.deliveryQty,0);
+    showToast(`Amounts saved on ticket ${padTicket(ticket.ticketNo)} — ${dTotal} items ready`);
+    btn.disabled = false; btn.textContent = 'Save amounts only';
+    // refresh ticket reference so packedAt note + values reflect the save
+    renderDeliver(container);
+  });
+
+  body.querySelector('#dl-submit').addEventListener('click', async ()=>{
+    if(!f.deliveryBy || !f.receivedBy){ showToast('Both signatures are required to confirm delivery'); return; }
+    const btn = body.querySelector('#dl-submit');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const items = mergeDeliverItems(ticket, f);
+    await updateTicket(custId, ticket.id, {
+      items, status:'closed', deliveryBy: f.deliveryBy, receivedBy: f.receivedBy,
+      deliveredDate: f.date, deliveryWorker: f.worker.trim()||'Unnamed',
+      deliveredAt: new Date().toISOString(),
+    });
+    const dTotal = items.reduce((a,i)=>a+i.deliveryQty,0);
+    showToast(`Ticket ${padTicket(ticket.ticketNo)} delivered — ${dTotal} items`);
+    state.deliverForm = freshDeliverForm();
+    renderDeliver(container);
+  });
+}
+
+function mergeDeliverItems(ticket, f){
+  return ticket.items.map(it=>({
+    ...it,
+    deliveryQty: f.delivered[it.itemId] ?? it.deliveryQty ?? 0,
+    remarks: (f.remarks[it.itemId] ?? it.remarks ?? '').trim ? (f.remarks[it.itemId] ?? it.remarks ?? '').trim() : '',
+  }));
+}
+
+function renderDeliverTable(ticket){
+  const f = state.deliverForm;
+  const box = document.getElementById('dl-table');
+  const grouped = groupByCategory(ticket.items.map(it=>({...it})));
+  let rowNo = 0;
+  const bodyHtml = grouped.map(({cat, items})=>{
+    const catRow = `<tr class="cat-row"><td colspan="7">${esc(cat)}</td></tr>`;
+    const rows = items.map(it=>{
+      rowNo++;
+      const d = f.delivered[it.itemId] ?? it.deliveryQty ?? 0;
+      const remainder = it.pickupQty - d;
+      const short = remainder>0 ? remainder : 0;
+      const over = remainder<0 ? Math.abs(remainder) : 0;
+      const remark = f.remarks[it.itemId] ?? it.remarks ?? '';
+      return `
+      <tr data-row="${it.itemId}">
+        <td class="rowno">${rowNo}</td>
+        <td class="itemname">${esc(it.name)}</td>
+        <td class="mono readonly-cell">${it.pickupQty}</td>
+        <td><input type="number" inputmode="numeric" pattern="[0-9]*" class="mono numcell" data-d="${it.itemId}" value="${d}" min="0" /></td>
+        <td class="mono short-cell" data-short="${it.itemId}">${short || '–'}</td>
+        <td class="mono over-cell" data-over="${it.itemId}">${over || '–'}</td>
+        <td><input type="text" data-remark="${it.itemId}" value="${esc(remark)}" placeholder="—" /></td>
+      </tr>`;
+    }).join('');
+    return catRow + rows;
+  }).join('');
+
+  box.innerHTML = `
+    <table class="grid">
+      <thead><tr><th class="rowno">No</th><th class="itemname">Item</th><th>Pick&nbsp;Up</th><th>Delivery</th><th>Short</th><th>Over</th><th>Remarks</th></tr></thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>`;
+
+  attachNumericBehavior(box);
+
+  box.querySelectorAll('[data-d]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const id = inp.dataset.d;
+    f.delivered[id] = Math.max(0, parseInt(inp.value||'0',10));
+    const it = ticket.items.find(x=>x.itemId===id);
+    const remainder = it.pickupQty - f.delivered[id];
+    const short = remainder>0 ? remainder : 0;
+    const over = remainder<0 ? Math.abs(remainder) : 0;
+    box.querySelector(`[data-short="${id}"]`).textContent = short || '–';
+    box.querySelector(`[data-over="${id}"]`).textContent = over || '–';
+  }));
+  box.querySelectorAll('[data-remark]').forEach(inp=> inp.addEventListener('input', ()=>{ f.remarks[inp.dataset.remark]=inp.value; }));
+}
+
+/* ---------------- print ticket builder ---------------- */
+function buildPrintTicket(t){
+  const area = document.getElementById('print-area');
+  const grouped = groupByCategory(t.items);
+  let rowNo = 0;
+  const rowsHtml = grouped.map(({cat, items})=>{
+    const catRow = `<tr class="pt-cat"><td colspan="7">${esc(cat)}</td></tr>`;
+    const rows = items.map(it=>{
+      rowNo++;
+      const remainder = it.pickupQty - (it.deliveryQty||0);
+      const short = t.stage==='delivered' && remainder>0 ? remainder : '';
+      const over = t.stage==='delivered' && remainder<0 ? Math.abs(remainder) : '';
+      return `<tr>
+        <td>${rowNo}</td><td class="pt-name">${esc(it.name)}</td>
+        <td>${it.pickupQty||''}</td><td>${t.stage==='delivered' ? (it.deliveryQty||'') : ''}</td>
+        <td>${short}</td><td>${over}</td>
+        <td class="pt-name">${esc(it.remarks||'')}</td>
+      </tr>`;
+    }).join('');
+    return catRow + rows;
+  }).join('');
+
+  area.innerHTML = `
+    <div class="pt-header">
+      <div>
+        <div class="pt-title">MEKONG LAUNDRY</div>
+        <div class="pt-sub">Laundry Pick Up &amp; Delivery</div>
+      </div>
+      <div class="pt-ticketno mono">No. ${padTicket(t.ticketNo)}</div>
+    </div>
+    <div class="pt-meta">
+      <div><b>Customer</b>${esc(t.customerName)}</div>
+      <div><b>Pickup date</b>${fmtDate(t.date)}</div>
+      <div><b>Delivery date</b>${t.deliveredDate ? fmtDate(t.deliveredDate) : '—'}</div>
+    </div>
+
+    <table class="pt-table">
+      <thead><tr><th>No</th><th>Items</th><th>Pick&nbsp;Up</th><th>Delivery</th><th>Short</th><th>Over</th><th>Remark</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div class="pt-sign-block">
+      <div class="pt-sign-col">
+        ${t.collectedBy ? `<img class="pt-sign-img" src="${t.collectedBy}" />` : ''}
+        <div class="pt-sign-line">Collected by<div class="pt-sign-sub">Mekong Laundry</div></div>
+      </div>
+      <div class="pt-sign-col">
+        ${t.pickUpBy ? `<img class="pt-sign-img" src="${t.pickUpBy}" />` : ''}
+        <div class="pt-sign-line">Pick up by<div class="pt-sign-sub">Customer</div></div>
+      </div>
+      <div class="pt-sign-col">
+        ${t.deliveryBy ? `<img class="pt-sign-img" src="${t.deliveryBy}" />` : ''}
+        <div class="pt-sign-line">Delivery by<div class="pt-sign-sub">Mekong Laundry</div></div>
+      </div>
+      <div class="pt-sign-col">
+        ${t.receivedBy ? `<img class="pt-sign-img" src="${t.receivedBy}" />` : ''}
+        <div class="pt-sign-line">Received by<div class="pt-sign-sub">Customer</div></div>
+      </div>
+    </div>
+  `;
+}
+
+/* ================= OFFICE VIEW ================= */
+function renderOffice(container){
+  const o = state.office;
+  // switching Office tabs (including into Users/Customers) starts a fresh, un-dirty draft
+  state.hasUnsavedDraft = false;
+  const role = state.currentUser ? state.currentUser.role : 'worker';
+  const pendingCount = state.pendingChanges.filter(p=> p.status!=='approved' && p.status!=='rejected').length;
+  const myTickets = myPendingTicketApprovals();
+  const myChanges = myPendingChangeApprovals();
+  const backupAlert = backupDueToday();
+  container.innerHTML = `
+    <div class="ticket-header"><div><div class="eyebrow">Review only</div><div class="title">Office</div></div></div>
+    ${backupAlert ? `
+    <div class="cust-card" style="background:var(--rose-50);border:1px solid var(--rose-100);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:800;font-size:13px;color:var(--rose-600);">⚠ Today's backup hasn't been downloaded</div>
+          <div style="font-size:12px;color:var(--stone-500);margin-top:2px;">${state.lastManualBackupAt ? `Last downloaded ${fmtDate(state.lastManualBackupAt.slice(0,10))}` : 'No backup has ever been downloaded yet'} — this is the copy that survives outside this app.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="office-backup-now" class="btn-dark" style="background:var(--rose-600);white-space:nowrap;">Download now</button>
+          ${role==='owner' ? `<button id="office-backup-dismiss" class="btn-outline" style="white-space:nowrap;">Dismiss for today</button>` : ''}
+        </div>
+      </div>
+    </div>` : ''}
+    ${(myTickets+myChanges) ? `
+    <div class="cust-card" style="background:var(--amber-50);border:1px solid var(--amber-100);">
+      <div style="font-weight:800;font-size:13px;margin-bottom:6px;color:var(--amber-800);">Needs your approval</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">
+        ${myTickets ? `<button data-jump="tickets" class="link-btn" style="font-size:13px;">${myTickets} pickup/delivery ticket${myTickets>1?'s':''} →</button>` : ''}
+        ${myChanges ? `<button data-jump="approvals" class="link-btn" style="font-size:13px;">${myChanges} Customers &amp; Items change${myChanges>1?'s':''} →</button>` : ''}
+      </div>
+    </div>` : ''}
+    <div class="office-tabs">
+      <button data-tab="tickets" class="${o.tab==='tickets'?'active':''}">Tickets</button>
+      <button data-tab="register" class="${o.tab==='register'?'active':''}">Register</button>
+      <button data-tab="billing" class="${o.tab==='billing'?'active':''}">Invoices</button>
+      <button data-tab="sales" class="${o.tab==='sales'?'active':''}">Sales</button>
+      <button data-tab="admin" class="${o.tab==='admin'?'active':''}">Customers</button>
+      <button data-tab="approvals" class="${o.tab==='approvals'?'active':''}">Approvals${pendingCount?' ('+pendingCount+')':''}</button>
+      <button data-tab="users" class="${o.tab==='users'?'active':''}">Users</button>
+    </div>
+    <div id="office-body"></div>
+  `;
+  container.querySelectorAll('[data-tab]').forEach(b=> b.addEventListener('click', ()=>{ o.tab=b.dataset.tab; renderOffice(container); }));
+  container.querySelectorAll('[data-jump]').forEach(b=> b.addEventListener('click', ()=>{ o.tab=b.dataset.jump; renderOffice(container); }));
+  const backupNowBtn = container.querySelector('#office-backup-now');
+  if(backupNowBtn) backupNowBtn.addEventListener('click', async ()=>{
+    backupNowBtn.disabled = true; backupNowBtn.textContent = 'Preparing…';
+    await downloadBackup();
+    showToast('Backup downloaded');
+    renderOffice(container);
+  });
+  const backupDismissBtn = container.querySelector('#office-backup-dismiss');
+  if(backupDismissBtn) backupDismissBtn.addEventListener('click', async ()=>{
+    if(!confirm("Dismiss today's backup alert without actually downloading a backup?")) return;
+    await dismissBackupAlertToday();
+    showToast('Alert dismissed for today');
+    renderOffice(container);
+  });
+  const body = document.getElementById('office-body');
+  if(o.tab==='tickets') renderTicketsTab(body);
+  else if(o.tab==='register') renderRegisterTab(body);
+  else if(o.tab==='billing') renderBillingTab(body);
+  else if(o.tab==='sales') renderSalesTab(body);
+  else if(o.tab==='users') renderUsersTab(body, role);
+  else if(o.tab==='approvals') renderApprovalsTab(body, role);
+  else renderAdminTab(body);
+}
+
+/* ---------- Approvals tab ---------- */
+function renderApprovalsTab(box, role){
+  function draw(){
+    const mine = currentUserName();
+    const pendingAdmin = state.pendingChanges.filter(p=> p.status==='pending_admin_approval');
+    const pendingOwner = state.pendingChanges.filter(p=> p.status==='pending_owner_approval');
+    const history = state.pendingChanges.filter(p=> p.status==='approved' || p.status==='rejected')
+      .sort((a,b)=> (b.ownerApprovedAt||b.rejectedAt||'').localeCompare(a.ownerApprovedAt||a.rejectedAt||'')).slice(0,10);
+
+    const cardFor = (p, stage) => {
+      const custNames = p.customersSnapshot.map(c=>c.name).join(', ');
+      const canAct = stage==='admin' ? (role==='admin' && p.proposedBy!==mine) || role==='owner' : role==='owner';
+      return `
+      <div class="card">
+        <div style="font-weight:800;">Customers &amp; Items update</div>
+        <div style="font-size:12px;color:var(--stone-500);margin-bottom:6px;">Proposed by ${esc(p.proposedBy)} · ${new Date(p.proposedAt).toLocaleString('en-GB')}</div>
+        <div style="font-size:12px;margin-bottom:8px;">Touches: ${esc(custNames)}</div>
+        ${p.adminApprovedBy ? `<div style="font-size:12px;color:var(--teal-700);margin-bottom:6px;">✓ Admin-approved by ${esc(p.adminApprovedBy)}</div>` : ''}
+        ${canAct ? `
+          <div class="btn-row">
+            <button data-reject="${p.id}" class="btn-outline" style="border-color:var(--rose-600)!important;color:var(--rose-600);">Reject</button>
+            <button data-approve="${p.id}|${stage}" class="btn-primary">${stage==='admin' ? 'Approve (Admin)' : 'Give final approval (Owner)'}</button>
+          </div>
+        ` : `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">${stage==='admin' ? 'Waiting on a different Admin to approve this.' : 'Waiting on the Owner.'}</div>`}
+      </div>`;
+    };
+
+    box.innerHTML = `
+      <div class="section-label"><span>Needs an Admin's approval</span></div>
+      ${pendingAdmin.length ? pendingAdmin.map(p=>cardFor(p,'admin')).join('') : `<div class="empty-note">Nothing waiting here.</div>`}
+
+      <div class="section-label" style="margin-top:16px;"><span>Needs the Owner's final approval</span></div>
+      ${pendingOwner.length ? pendingOwner.map(p=>cardFor(p,'owner')).join('') : `<div class="empty-note">Nothing waiting here.</div>`}
+
+      ${history.length ? `
+      <div class="section-label" style="margin-top:16px;"><span>Recent history</span></div>
+      ${history.map(p=>`
+        <div class="card" style="opacity:.7;">
+          <div style="font-size:12px;">${p.status==='approved' ? '✓ Approved' : '✕ Rejected'} — proposed by ${esc(p.proposedBy)}${p.status==='approved' ? `, final approval by ${esc(p.ownerApprovedBy)}` : ''}</div>
+        </div>`).join('')}
+      ` : ''}
+    `;
+
+    box.querySelectorAll('[data-approve]').forEach(btn=> btn.addEventListener('click', async ()=>{
+      const [id, stage] = btn.dataset.approve.split('|');
+      const list = state.pendingChanges.map(p=>{
+        if(p.id!==id) return p;
+        if(stage==='admin') return { ...p, status:'pending_owner_approval', adminApprovedBy: mine, adminApprovedAt: new Date().toISOString() };
+        return { ...p, status:'approved', ownerApprovedBy: mine, ownerApprovedAt: new Date().toISOString() };
+      });
+      await savePendingChanges(list);
+      if(stage==='owner'){
+        const p = list.find(x=>x.id===id);
+        await saveCustomers(p.customersSnapshot);
+        state.paymentDetails = p.paymentDetailsSnapshot;
+        await storageSet('paymentDetails', p.paymentDetailsSnapshot, true);
+        showToast('Approved and published');
+      } else {
+        showToast('Approved — now needs the Owner');
+      }
+      draw();
+    }));
+    box.querySelectorAll('[data-reject]').forEach(btn=> btn.addEventListener('click', async ()=>{
+      if(!confirm('Reject this change? It will not be applied.')) return;
+      const list = state.pendingChanges.map(p=> p.id===btn.dataset.reject ? { ...p, status:'rejected', rejectedBy: mine, rejectedAt: new Date().toISOString() } : p);
+      await savePendingChanges(list);
+      showToast('Rejected');
+      draw();
+    }));
+  }
+  draw();
+}
+
+function renderUsersTab(box, role){
+  // Owner sees & manages everyone (Admins + Workers). Admin manages Workers only. Worker never sees this (no Office nav).
+  let localUsers = JSON.parse(JSON.stringify(state.users));
+  localUsers.forEach(u=>{ u._rowKey = u.id; }); // stable DOM binding even if the owner edits the User ID itself
+  let dirty = false;
+
+  function markDirty(){
+    dirty = true;
+    state.hasUnsavedDraft = true;
+    const btn = box.querySelector('#us-save');
+    if(btn){ btn.disabled = false; btn.textContent = 'Save changes'; }
+  }
+
+  function draw(){
+    const manageable = role==='owner' ? localUsers : localUsers.filter(u=> u.role==='worker');
+    const addableRoles = role==='owner' ? ['admin','worker'] : ['worker'];
+    const daysLeft = Math.ceil((new Date(state.securityKey.expiresAt) - new Date())/86400000);
+
+    box.innerHTML = `
+      ${role==='owner' ? `
+      <div class="cust-card" style="background:var(--stone-50);">
+        <div class="section-label"><span>Security key</span><span style="font-weight:600;text-transform:none;letter-spacing:0;">renews every year</span></div>
+        <div class="mono" style="font-size:13px;font-weight:800;margin-bottom:4px;">${esc(state.securityKey.key)}</div>
+        <div style="font-size:12px;color:${daysLeft<=30?'var(--rose-600)':'var(--stone-500)'};margin-bottom:10px;">
+          Valid until ${fmtDate(state.securityKey.expiresAt.slice(0,10))} (${daysLeft} day${daysLeft===1?'':'s'} left) · last set by ${esc(state.securityKey.setBy)}
+        </div>
+        <button id="us-renewkey" class="btn-outline" style="padding:8px 14px;">Renew now (resets to 1 year)</button>
+      </div>` : ''}
+
+      <div class="section-label"><span>${role==='owner' ? 'All users' : 'Workers'}</span><span style="font-weight:600;text-transform:none;letter-spacing:0;">${role==='owner' ? 'User ID, password, and last device for every account' : 'You can add and manage Worker accounts'}</span></div>
+
+      <div class="cust-card">
+        <div class="row2" style="margin-bottom:8px;">
+          <input id="us-newname" type="text" class="field-input" placeholder="Name" />
+          <select id="us-newrole" class="field-input">
+            ${addableRoles.map(r=>`<option value="${r}">${r[0].toUpperCase()+r.slice(1)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="row2" style="margin-bottom:0;">
+          <input id="us-newpin" type="text" inputmode="numeric" pattern="[0-9]*" class="field-input mono" placeholder="4-digit password" maxlength="8" />
+          <button id="us-add" class="btn-dark" style="background:var(--teal-700);">Add account</button>
+        </div>
+      </div>
+
+      <div id="us-list"></div>
+
+      <button id="us-save" class="btn-primary" ${dirty?'':'disabled'} style="width:100%;margin-top:8px;">${dirty?'Save changes':'Saved'}</button>
+    `;
+
+    const list = box.querySelector('#us-list');
+    list.innerHTML = manageable.map(u=>{
+      const isMe = state.currentUser && u.id===state.currentUser.id;
+      return `
+      <div class="cust-card" style="margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-weight:800;flex:1;">${esc(u.name)}${isMe?' (you)':''}</span>
+          <span class="pill ${u.role==='admin'?'open':u.role==='owner'?'closed':''}" style="margin-bottom:0;${u.role==='worker'?'background:var(--stone-100);color:var(--stone-500);':''}">${u.role}</span>
+        </div>
+        <div class="row2" style="margin-bottom:0;">
+          <div>
+            <label class="field-label">User ID</label>
+            ${role==='owner'
+              ? `<input type="text" class="field-input mono" data-userid="${u._rowKey}" value="${esc(u.id)}" style="font-size:12px;padding:7px 10px;" />`
+              : `<div class="mono" style="font-size:11px;color:var(--stone-400);">${esc(u.id)}</div>`}
+          </div>
+          <div>
+            <label class="field-label">Password (PIN)</label>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="field-input mono" data-pin="${u._rowKey}" value="${esc(u.pin||'')}" style="max-width:140px;" />
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--stone-400);margin-top:8px;">
+          <b style="color:var(--stone-500);">Device:</b> ${u.lastDevice ? esc(u.lastDevice) : 'Never logged in'}${u.lastLoginAt ? ' · last seen '+new Date(u.lastLoginAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}
+        </div>
+        ${u.role!=='owner' ? `<button data-remove="${u._rowKey}" class="link-btn" style="color:var(--rose-600);margin-top:8px;">Remove account</button>` : ''}
+      </div>`;
+    }).join('') || `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">No accounts yet.</div>`;
+
+    const renewBtn = box.querySelector('#us-renewkey');
+    if(renewBtn) renewBtn.addEventListener('click', async ()=>{
+      if(!confirm('Renew the security key for another year starting today?')) return;
+      await renewSecurityKey();
+      showToast('Security key renewed for 1 year');
+      draw();
+    });
+
+    box.querySelector('#us-add').addEventListener('click', ()=>{
+      const name = box.querySelector('#us-newname').value.trim();
+      const r = box.querySelector('#us-newrole').value;
+      const pin = box.querySelector('#us-newpin').value.trim();
+      if(!name){ showToast('Enter a name'); return; }
+      if(!pin){ showToast('Set a password'); return; }
+      const id = uid();
+      localUsers.push({ id, name, role: r, pin, active: true, _rowKey: id });
+      markDirty(); draw();
+    });
+
+    list.querySelectorAll('[data-pin]').forEach(inp=> inp.addEventListener('change', ()=>{
+      const u = localUsers.find(x=>x._rowKey===inp.dataset.pin);
+      if(u){ u.pin = inp.value.trim(); markDirty(); }
+    }));
+    list.querySelectorAll('[data-userid]').forEach(inp=> inp.addEventListener('change', ()=>{
+      const u = localUsers.find(x=>x._rowKey===inp.dataset.userid);
+      if(!u) return;
+      const newId = inp.value.trim();
+      if(!newId){ showToast("User ID can't be blank"); inp.value = u.id; return; }
+      if(localUsers.some(x=>x._rowKey!==u._rowKey && x.id===newId)){
+        showToast('That User ID is already taken');
+        inp.value = u.id;
+        return;
+      }
+      u.id = newId;
+      markDirty();
+    }));
+    list.querySelectorAll('[data-remove]').forEach(b=> b.addEventListener('click', ()=>{
+      const u = localUsers.find(x=>x._rowKey===b.dataset.remove);
+      if(!confirm(`Remove ${u.name}'s account? They will no longer be able to log in or see anything. Their name stays on past pickup/delivery tickets for the record.`)) return;
+      localUsers = localUsers.filter(x=>x._rowKey!==b.dataset.remove);
+      markDirty(); draw();
+    }));
+
+    box.querySelector('#us-save').addEventListener('click', async ()=>{
+      const cleaned = localUsers.map(({_rowKey, ...u})=> u);
+      await saveUsers(cleaned);
+      dirty=false; state.hasUnsavedDraft = false; draw(); showToast('Saved');
+    });
+  }
+  draw();
+}
+
+/* ---------- Tickets tab ---------- */
+function renderTicketsTab(box){
+  const o = state.office;
+  box.innerHTML = `
+    <div class="row3" style="grid-template-columns:1fr 1fr 1fr;">
+      <div><label class="field-label">Status</label>
+        <select id="tk-status" class="field-input">
+          <option value="open" ${o.statusFilter==='open'?'selected':''}>Open (awaiting delivery)</option>
+          <option value="closed" ${o.statusFilter==='closed'?'selected':''}>Closed (delivered)</option>
+          <option value="all" ${o.statusFilter==='all'?'selected':''}>All</option>
+        </select>
+      </div>
+      <div style="grid-column:span 2;"><label class="field-label">Customer</label>
+        <select id="tk-cust" class="field-input">
+          <option value="all" ${o.custFilter==='all'?'selected':''}>All customers</option>
+          ${state.customers.map(c=>`<option value="${c.id}" ${o.custFilter===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div id="tk-list"></div>
+  `;
+  box.querySelector('#tk-status').addEventListener('change', e=>{ o.statusFilter = e.target.value; renderTicketList(); });
+  box.querySelector('#tk-cust').addEventListener('change', e=>{ o.custFilter = e.target.value; renderTicketList(); });
+  renderTicketList();
+}
+
+function renderTicketList(){
+  const o = state.office;
+  const list = document.getElementById('tk-list');
+  const rows = [];
+  state.customers.filter(c=> o.custFilter==='all' || c.id===o.custFilter).forEach(c=>{
+    ticketsFor(c.id).filter(t=> o.statusFilter==='all' || t.status===o.statusFilter).forEach(t=> rows.push({cust:c, t}));
+  });
+  rows.sort((a,b)=> b.t.ticketNo - a.t.ticketNo);
+
+  if(rows.length===0){ list.innerHTML = `<div class="empty-note">No tickets match this filter.</div>`; return; }
+
+  list.innerHTML = rows.map(({cust,t})=> ticketCardHtml(cust,t)).join('');
+  list.querySelectorAll('[data-approvebtn]').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      const [custId, ticketId] = e.target.dataset.approvebtn.split('|');
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const approvals = t.approvals || [];
+      if(approvals.length>=2 || approvals.some(a=>a.byId===state.currentUser.id)) return;
+      const next = [...approvals, { by: currentUserName(), byId: state.currentUser.id, at: new Date().toISOString() }];
+      await updateTicket(custId, ticketId, {
+        approvals: next,
+        reviewed: next.length>=2, // kept for any older code paths that still check .reviewed
+      });
+      renderTicketList();
+    });
+  });
+  list.querySelectorAll('[data-unapprove]').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      const [custId, ticketId] = e.target.dataset.unapprove.split('|');
+      if(!confirm('Remove your approval from this ticket?')) return;
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const next = (t.approvals||[]).filter(a=> a.byId!==state.currentUser.id);
+      await updateTicket(custId, ticketId, { approvals: next, reviewed: next.length>=2 });
+      renderTicketList();
+    });
+  });
+  list.querySelectorAll('[data-printticket]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const [custId, ticketId] = btn.dataset.printticket.split('|');
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const cust = state.customers.find(c=>c.id===custId);
+      buildPrintTicket({
+        ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
+        items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+      });
+      window.print();
+    });
+  });
+}
+
+function ticketCardHtml(cust, t){
+  const pickupTotal = t.items.reduce((a,i)=>a+i.pickupQty,0);
+  const deliveryTotal = t.items.reduce((a,i)=>a+(i.deliveryQty||0),0);
+  const shortItems = t.status==='closed' ? t.items.filter(i=> i.pickupQty - (i.deliveryQty||0) > 0) : [];
+  const overItems = t.status==='closed' ? t.items.filter(i=> i.pickupQty - (i.deliveryQty||0) < 0) : [];
+  const remarkItems = t.items.filter(i=> i.remarks);
+  const age = t.status==='open' ? Math.max(0, Math.round((new Date(todayStr())-new Date(t.date))/86400000)) : null;
+  const approvals = t.approvals || [];
+  const fullyApproved = approvals.length>=2;
+  const myId = state.currentUser ? state.currentUser.id : null;
+  const alreadyApprovedByMe = approvals.some(a=>a.byId===myId);
+  const canApprove = state.currentUser && (state.currentUser.role==='admin' || state.currentUser.role==='owner') && !fullyApproved && !alreadyApprovedByMe;
+
+  return `
+    <div class="card ${fullyApproved?'':'unreviewed'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <span class="pill ${t.status}">${t.status==='open'?'Open':'Closed'}</span>
+          ${t.status==='open' && t.packedAt ? `<span class="pill" style="background:var(--sky-100);color:var(--sky-800);">Amounts saved</span>` : ''}
+          ${age!==null && age>0 ? `<span class="age-tag mono">${age}d outstanding</span>` : ''}
+          <div style="font-weight:800;">${esc(cust.name)} <span class="mono" style="color:var(--stone-400);font-weight:700;">#${padTicket(t.ticketNo)}</span></div>
+          <div style="font-size:11px;color:var(--stone-400);">Picked up ${fmtDate(t.date)} by ${esc(t.worker||'—')}${t.deliveredDate ? ' · Delivered '+fmtDate(t.deliveredDate)+' by '+esc(t.deliveryWorker||'—') : ''}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="mono" style="font-weight:900;font-size:16px;">${pickupTotal}${deliveryTotal>0 ? ' → '+deliveryTotal : ''}</div>
+          <div style="font-size:9px;color:var(--stone-400);text-transform:uppercase;">pickup${deliveryTotal>0?' → delivery':''}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;">
+        ${t.items.map(i=>`<span class="chip mono">${esc(i.name)} ${i.pickupQty}${t.status==='closed' ? '→'+(i.deliveryQty||0) : ''}</span>`).join('')}
+      </div>
+      ${shortItems.length? `<div class="flag-short">△ Short: ${shortItems.map(i=>`${esc(i.name)} −${i.pickupQty-(i.deliveryQty||0)}`).join(', ')}</div>`:''}
+      ${overItems.length? `<div class="flag-over">⚠ Over: ${overItems.map(i=>`${esc(i.name)} +${(i.deliveryQty||0)-i.pickupQty}`).join(', ')}</div>`:''}
+      ${remarkItems.length? `<div style="font-size:12px;color:var(--stone-600);margin-top:4px;">📝 ${remarkItems.map(i=>`<b>${esc(i.name)}:</b> ${esc(i.remarks)}`).join(' · ')}</div>`:''}
+      <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;">
+        ${t.collectedBy ? `<img class="sig-thumb" src="${t.collectedBy}" title="Collected by" />` : ''}
+        ${t.pickUpBy ? `<img class="sig-thumb" src="${t.pickUpBy}" title="Pick up by" />` : ''}
+        ${t.deliveryBy ? `<img class="sig-thumb" src="${t.deliveryBy}" title="Delivery by" />` : ''}
+        ${t.receivedBy ? `<img class="sig-thumb" src="${t.receivedBy}" title="Received by" />` : ''}
+      </div>
+      <div class="reviewed-row" style="justify-content:space-between;align-items:flex-start;">
+        <div style="font-size:12px;">
+          <div style="font-weight:800;color:${fullyApproved?'var(--teal-700)':'var(--stone-500)'};margin-bottom:2px;">${fullyApproved ? '✓ Approved (2/2)' : `Approvals: ${approvals.length}/2`}</div>
+          ${approvals.map(a=>`<div style="color:var(--stone-400);">· ${esc(a.by)}${alreadyApprovedByMe && a.byId===myId ? ' (you)' : ''}</div>`).join('')}
+          ${canApprove ? `<button data-approvebtn="${cust.id}|${t.id}" class="link-btn" style="margin-top:4px;">Approve</button>` : ''}
+          ${alreadyApprovedByMe ? `<button data-unapprove="${cust.id}|${t.id}" class="link-btn" style="margin-top:4px;color:var(--rose-600);">Remove my approval</button>` : ''}
+        </div>
+        <button class="link-btn" data-printticket="${cust.id}|${t.id}">Print</button>
+      </div>
+    </div>`;
+}
+
+/* ---------- Register tab ---------- */
+function renderRegisterTab(box){
+  const o = state.office;
+  if(!o.registerCust) o.registerCust = state.customers[0]?.id;
+  box.innerHTML = `
+    <div class="row2" style="margin-bottom:12px;">
+      <div><label class="field-label">Customer</label>
+        <select id="rg-cust" class="field-input">
+          ${state.customers.map(c=>`<option value="${c.id}" ${o.registerCust===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div><label class="field-label">Month</label>
+        <input id="rg-month" type="month" class="field-input mono" value="${o.registerMonth}" />
+      </div>
+    </div>
+    <div id="rg-table"></div>
+  `;
+  box.querySelector('#rg-cust').addEventListener('change', e=>{ o.registerCust = e.target.value; renderRegisterTable(); });
+  box.querySelector('#rg-month').addEventListener('input', e=>{ o.registerMonth = e.target.value; renderRegisterTable(); });
+  renderRegisterTable();
+}
+
+function renderRegisterTable(){
+  const o = state.office;
+  const box = document.getElementById('rg-table');
+  const custId = o.registerCust;
+  const tickets = ticketsFor(custId);
+  if(!custId){ box.innerHTML=''; return; }
+
+  const [year, mon] = o.registerMonth.split('-').map(Number);
+  const daysInMonth = new Date(year, mon, 0).getDate();
+  const dayList = Array.from({length:daysInMonth}, (_,i)=>i+1);
+  const dateStr = (day) => `${o.registerMonth}-${String(day).padStart(2,'0')}`;
+
+  const custObj = state.customers.find(c=>c.id===custId);
+  const items = custObj ? custObj.items : [];
+  const perDay = (itemId, day) => {
+    const d = dateStr(day);
+    const picked = tickets.filter(t=>t.date===d).reduce((a,t)=> a+(t.items.find(i=>i.itemId===itemId)?.pickupQty||0),0);
+    const delivered = tickets.filter(t=>t.deliveredDate===d).reduce((a,t)=> a+(t.items.find(i=>i.itemId===itemId)?.deliveryQty||0),0);
+    return {picked, delivered};
+  };
+  const owedNow = (itemId) => tickets.reduce((a,t)=>{
+    const it = t.items.find(i=>i.itemId===itemId);
+    if(!it) return a;
+    return a + (it.pickupQty - (it.deliveryQty||0));
+  }, 0);
+  const usedItems = items.filter(it => tickets.some(t=> t.items.some(i=>i.itemId===it.id)));
+  const totalOwed = usedItems.reduce((a,it)=> a+owedNow(it.id), 0);
+
+  let head1 = `<th class="itemname">Item</th>` + dayList.map(d=>`<th>${d}</th>`).join('') + `<th class="owed-cell2" style="border-left-width:2px;">Owed</th>`;
+  let head2 = `<th class="itemname">Picked / Delivered</th>` + dayList.map(()=>`<th></th>`).join('') + `<th></th>`;
+
+  let bodyRows = (usedItems.length ? usedItems : items).map(it=>{
+    const owed = owedNow(it.id);
+    const cells = dayList.map(d=>{
+      const {picked,delivered} = perDay(it.id,d);
+      if(!picked && !delivered) return `<td class="mono" style="color:var(--stone-200)">·</td>`;
+      return `<td class="mono"><span style="color:var(--sky-700)">${picked||'·'}</span>/<span style="color:var(--teal-700)">${delivered||'·'}</span></td>`;
+    }).join('');
+    const owedCls = owed>0?'owed-pos':(owed<0?'owed-neg':'');
+    return `<tr><td class="itemname">${esc(it.name)}</td>${cells}<td class="mono owed-cell2 ${owedCls}">${owed}</td></tr>`;
+  }).join('');
+
+  const totalCells = dayList.map(d=>{
+    const picked = items.reduce((a,it)=> a+perDay(it.id,d).picked,0);
+    const delivered = items.reduce((a,it)=> a+perDay(it.id,d).delivered,0);
+    if(!picked && !delivered) return `<td class="mono" style="color:var(--stone-200)">·</td>`;
+    return `<td class="mono" style="font-weight:800;"><span style="color:var(--sky-700)">${picked}</span>/<span style="color:var(--teal-700)">${delivered}</span></td>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:14px;"><b>Outstanding balance:</b> <span class="mono" style="font-weight:900;color:${totalOwed>0?'var(--amber-700)':'var(--stone-400)'}">${totalOwed} items</span></div>
+      <button id="rg-export" class="btn-dark">Export CSV</button>
+    </div>
+    <div class="register-wrap">
+      <table class="register">
+        <thead><tr>${head1}</tr><tr>${head2}</tr></thead>
+        <tbody>
+          ${bodyRows || `<tr><td class="itemname" colspan="${dayList.length+2}" style="color:var(--stone-400);font-style:italic;">No activity yet.</td></tr>`}
+          <tr style="border-top:2px solid var(--stone-300);background:var(--stone-50);">
+            <td class="itemname" style="font-weight:900;text-transform:uppercase;">Total</td>
+            ${totalCells}
+            <td class="mono owed-cell2" style="font-weight:900;">${totalOwed}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend"><span style="color:var(--sky-700);font-weight:800;">Picked</span> / <span style="color:var(--teal-700);font-weight:800;">Delivered</span> per day (delivered counted on its delivery date). <b>Owed</b> = cumulative pickup minus delivery across all tickets — stays positive while short/still open, turns <span style="color:var(--rose-600);font-weight:800;">red</span> on an over.</div>
+  `;
+
+  box.querySelector('#rg-export').addEventListener('click', ()=>{
+    const rowsSrc = usedItems.length ? usedItems : items;
+    const lines = [];
+    lines.push(['Item', ...dayList.flatMap(d=>[`${d} Picked`,`${d} Delivered`]), 'Owed (Balance)'].join(','));
+    rowsSrc.forEach(it=>{
+      const cells = dayList.flatMap(d=>{ const {picked,delivered}=perDay(it.id,d); return [picked,delivered]; });
+      lines.push([`"${it.name}"`, ...cells, owedNow(it.id)].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const custName = state.customers.find(c=>c.id===custId)?.name || 'customer';
+    a.href = url; a.download = `${custName.replace(/\s+/g,'_')}_register_${o.registerMonth}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  });
+}
+
+/* ---------- Billing tab ---------- */
+function renderBillingTab(box){
+  const o = state.office;
+  if(!o.billingCust) o.billingCust = state.customers[0]?.id;
+  if(!o.billingView) o.billingView = 'list';
+  if(!o.billingFilterCust) o.billingFilterCust = 'all';
+  if(!o.billingFilterType) o.billingFilterType = 'all';
+
+  if(o.billingView === 'list') drawInvoiceList();
+  else drawPeriodPicker();
+
+  function openInvoice(custId, period, isCash){
+    o.billingCust = custId;
+    if(isCash) o.billingDate = period; else o.billingMonth = period;
+    o.billingView = 'detail';
+    drawPeriodPicker();
+  }
+
+  function drawInvoiceList(){
+    const allInvoices = listInvoicePeriods();
+    const from = o.billingFilterFrom, to = o.billingFilterTo;
+    const invoices = allInvoices.filter(inv =>
+      (o.billingFilterCust==='all' || inv.custId===o.billingFilterCust) &&
+      (o.billingFilterType==='all' || (o.billingFilterType==='cash')===inv.isCash) &&
+      (!from || inv.periodEnd >= from) &&
+      (!to || inv.periodStart <= to)
+    );
+    const periodTotal = invoices.reduce((a,inv)=> a+inv.subtotal, 0);
+
+    box.innerHTML = `
+      <div class="section-label"><span>Invoices</span></div>
+      <div class="row3" style="grid-template-columns:1fr 1fr;margin-bottom:10px;">
+        <div><label class="field-label">Customer</label>
+          <select id="bl-filter-cust" class="field-input">
+            <option value="all" ${o.billingFilterCust==='all'?'selected':''}>All customers</option>
+            ${state.customers.map(c=>`<option value="${c.id}" ${o.billingFilterCust===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div><label class="field-label">Type</label>
+          <select id="bl-filter-type" class="field-input">
+            <option value="all" ${o.billingFilterType==='all'?'selected':''}>Cash &amp; Credit</option>
+            <option value="cash" ${o.billingFilterType==='cash'?'selected':''}>Cash (daily)</option>
+            <option value="credit" ${o.billingFilterType==='credit'?'selected':''}>Credit (monthly)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row3" style="grid-template-columns:1fr 1fr auto;margin-bottom:12px;align-items:end;">
+        <div><label class="field-label">Period from</label>
+          <input id="bl-filter-from" type="date" class="field-input mono" value="${from}" />
+        </div>
+        <div><label class="field-label">Period to</label>
+          <input id="bl-filter-to" type="date" class="field-input mono" value="${to}" />
+        </div>
+        <div>
+          ${(from || to) ? `<button id="bl-filter-clear" class="btn-outline" style="padding:9px 14px;white-space:nowrap;">Clear dates</button>` : ''}
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+        <button id="bl-export-xlsx" class="link-btn">Export Excel (.xlsx)</button>
+      </div>
+      <div class="register-wrap">
+        <table class="register" style="font-size:13px;">
+          <thead><tr>
+            <th class="itemname" style="position:static;">No.</th>
+            <th style="position:static;text-align:left;">Customer</th>
+            <th>Invoice No.</th>
+            <th>Type</th>
+            <th>Invoice date</th>
+            <th style="text-align:right;">Amount</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            ${invoices.map((inv,i)=>`
+              <tr data-openinv="${inv.custId}|${inv.period}|${inv.isCash?1:0}" style="cursor:pointer;">
+                <td class="itemname">${i+1}</td>
+                <td class="itemname" style="position:static;">${esc(inv.custName)}</td>
+                <td class="mono">${esc(inv.invoiceNo)}</td>
+                <td><span class="pill ${inv.isCash?'open':'closed'}" style="margin-bottom:0;">${inv.isCash?'Cash':'Credit'}</span></td>
+                <td class="mono">${inv.isCash?fmtDate(inv.period):fmtDate(inv.periodEnd)}</td>
+                <td class="mono" style="text-align:right;font-weight:800;">$${inv.subtotal.toFixed(2)}</td>
+                <td><span class="link-btn">View / Edit →</span></td>
+              </tr>`).join('') || `<tr><td class="itemname" colspan="7" style="color:var(--stone-400);font-style:italic;">No invoices in this range.</td></tr>`}
+            ${invoices.length ? `<tr style="border-top:2px solid var(--stone-300);background:var(--stone-50);">
+              <td class="itemname" colspan="5" style="font-weight:900;text-transform:uppercase;">Total (${invoices.length} invoice${invoices.length>1?'s':''})</td>
+              <td class="mono" style="text-align:right;font-weight:900;color:var(--teal-800);">$${periodTotal.toFixed(2)}</td>
+              <td></td>
+            </tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+      <div class="legend">Each row is a bill period with confirmed deliveries — a <b>month</b> for Credit customers, a <b>day</b> for Cash customers. <b>Invoice date</b> is the last day of the period for Credit, or the sale day for Cash. Use "Period from / to" to pull invoices for a specific stretch of time. Click any row to open, edit discount/express charge, and print or re-print it.</div>
+      <button id="bl-newinv" class="btn-outline" style="margin-top:14px;width:100%;">+ Open a bill for a specific customer &amp; period</button>
+    `;
+
+    box.querySelector('#bl-filter-cust').addEventListener('change', e=>{ o.billingFilterCust = e.target.value; drawInvoiceList(); });
+    box.querySelector('#bl-filter-type').addEventListener('change', e=>{ o.billingFilterType = e.target.value; drawInvoiceList(); });
+    box.querySelector('#bl-filter-from').addEventListener('input', e=>{ o.billingFilterFrom = e.target.value; drawInvoiceList(); });
+    box.querySelector('#bl-filter-to').addEventListener('input', e=>{ o.billingFilterTo = e.target.value; drawInvoiceList(); });
+    const clearBtn = box.querySelector('#bl-filter-clear');
+    if(clearBtn) clearBtn.addEventListener('click', ()=>{ o.billingFilterFrom=''; o.billingFilterTo=''; drawInvoiceList(); });
+    box.querySelector('#bl-export-xlsx').addEventListener('click', ()=> exportInvoicesExcel(invoices));
+    box.querySelectorAll('[data-openinv]').forEach(row=> row.addEventListener('click', ()=>{
+      const [custId, period, cashFlag] = row.dataset.openinv.split('|');
+      openInvoice(custId, period, cashFlag==='1');
+    }));
+    box.querySelector('#bl-newinv').addEventListener('click', ()=>{
+      o.billingView = 'detail';
+      drawPeriodPicker();
+    });
+  }
+
+  function drawPeriodPicker(){
+    const cust = state.customers.find(c=>c.id===o.billingCust);
+    const isCash = cust && cust.billingType==='cash';
+    box.innerHTML = `
+      <button id="bl-back" class="link-btn" style="margin-bottom:12px;">← Back to invoices</button>
+      <div class="row2" style="margin-bottom:12px;">
+        <div><label class="field-label">Customer</label>
+          <select id="bl-cust" class="field-input">
+            ${state.customers.map(c=>`<option value="${c.id}" ${o.billingCust===c.id?'selected':''}>${esc(c.name)} — ${c.billingType==='cash'?'Cash':'Credit'}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="field-label">${isCash ? 'Bill date (Cash — billed daily)' : 'Month (Credit — billed monthly)'}</label>
+          ${isCash
+            ? `<input id="bl-date" type="date" class="field-input mono" value="${o.billingDate}" />`
+            : `<input id="bl-month" type="month" class="field-input mono" value="${o.billingMonth}" />`}
+        </div>
+      </div>
+      <div id="bl-table"></div>
+    `;
+    box.querySelector('#bl-back').addEventListener('click', ()=>{ o.billingView = 'list'; drawInvoiceList(); });
+    box.querySelector('#bl-cust').addEventListener('change', e=>{ o.billingCust = e.target.value; drawPeriodPicker(); });
+    if(isCash) box.querySelector('#bl-date').addEventListener('input', e=>{ o.billingDate = e.target.value; renderBillingTable(); });
+    else box.querySelector('#bl-month').addEventListener('input', e=>{ o.billingMonth = e.target.value; renderBillingTable(); });
+    renderBillingTable();
+  }
+}
+
+// Derives the "invoice list" from confirmed deliveries: one row per customer per
+// billing period (a month for Credit, a day for Cash) that has any delivered sales.
+async function exportInvoicesExcel(invoices){
+  const rows = [];
+  for(let i=0;i<invoices.length;i++){
+    const inv = invoices[i];
+    const adj = await loadAdjustments(inv.custId, inv.period);
+    const discountAmt = resolveAdjAmount(adj.discountType, adj.discountValue, inv.subtotal);
+    const expressAmt = resolveAdjAmount(adj.expressType, adj.expressValue, inv.subtotal);
+    const total = inv.subtotal - discountAmt + expressAmt;
+    const invoiceDate = inv.isCash ? inv.period : inv.periodEnd;
+    rows.push({
+      'No.': i+1,
+      'Customer': inv.custName,
+      'Invoice No.': inv.invoiceNo,
+      'Invoice Date': fmtDate(invoiceDate),
+      'Due Date': inv.isCash ? 'Paid at delivery' : fmtDate(dueDateFor(state.customers.find(c=>c.id===inv.custId)||{}, invoiceDate)),
+      'Amount (before discount)': Number(inv.subtotal.toFixed(2)),
+      'Discount': Number(discountAmt.toFixed(2)),
+      'Express Charge': Number(expressAmt.toFixed(2)),
+      'Total Amount': Number(total.toFixed(2)),
+    });
+  }
+
+  if(window.XLSX){
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{wch:5},{wch:26},{wch:14},{wch:14},{wch:16},{wch:20},{wch:12},{wch:14},{wch:14}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
+    XLSX.writeFile(wb, `invoices_${todayStr()}.xlsx`);
+  } else {
+    // offline fallback — same columns, as CSV (still opens fine in Excel)
+    const cols = ['No.','Customer','Invoice No.','Invoice Date','Due Date','Amount (before discount)','Discount','Express Charge','Total Amount'];
+    const lines = [cols.join(',')];
+    rows.forEach(r=> lines.push(cols.map(k=> typeof r[k]==='number' ? r[k].toFixed(2) : `"${r[k]}"`).join(',')));
+    const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `invoices_${todayStr()}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    showToast('Excel library unavailable offline — exported as CSV instead');
+  }
+}
+
+function fmtInvoiceNo(n){ return 'INV-'+String(n).padStart(6,'0'); }
+function ensureInvoiceNo(custId, period){
+  const key = custId+':'+period;
+  if(state.invoiceNumbers[key]) return state.invoiceNumbers[key];
+  state.invoiceCounter += 1;
+  const no = fmtInvoiceNo(state.invoiceCounter);
+  state.invoiceNumbers[key] = no;
+  // persist in the background — callers of listInvoicePeriods() stay synchronous
+  storageSet('invoiceNumbers', state.invoiceNumbers, true);
+  storageSet('invoiceCounter', state.invoiceCounter, true);
+  return no;
+}
+async function setInvoiceNo(custId, period, value){
+  const key = custId+':'+period;
+  const clean = (value||'').trim();
+  if(!clean) return ensureInvoiceNo(custId, period); // don't allow blanking it out
+  state.invoiceNumbers[key] = clean;
+  await storageSet('invoiceNumbers', state.invoiceNumbers, true);
+  return clean;
+}
+function dueDateFor(cust, invoiceDate){
+  const days = cust.paymentTermsDays==null ? 30 : cust.paymentTermsDays;
+  const d = new Date(invoiceDate+'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+
+function listInvoicePeriods(){
+  const rows = [];
+  state.customers.forEach(c=>{
+    const isCash = c.billingType==='cash';
+    const periods = new Set();
+    ticketsFor(c.id).forEach(t=>{
+      if(!t.deliveredDate) return;
+      periods.add(isCash ? t.deliveredDate : t.deliveredDate.slice(0,7));
+    });
+    periods.forEach(period=>{
+      const { start, end } = isCash ? { start:period, end:period } : monthBounds(period);
+      const { subtotal } = computeBillingLinesRange(c.id, start, end);
+      if(subtotal<=0) return;
+      rows.push({ custId:c.id, custName:c.name, isCash, period, subtotal, periodStart:start, periodEnd:end });
+    });
+  });
+  // assign stable invoice numbers oldest-first, so numbering reads naturally over time
+  [...rows].sort((a,b)=> a.period.localeCompare(b.period) || a.custName.localeCompare(b.custName))
+    .forEach(r=> { r.invoiceNo = ensureInvoiceNo(r.custId, r.period); });
+  rows.sort((a,b)=> b.period.localeCompare(a.period) || a.custName.localeCompare(b.custName));
+  return rows;
+}
+
+function computeBillingLinesRange(custId, fromDate, toDate){
+  const cust = state.customers.find(c=>c.id===custId);
+  if(!cust) return { cust:null, lines:[], subtotal:0 };
+  const tickets = ticketsFor(custId);
+  const qtyByItem = {};
+  tickets.forEach(t=>{
+    if(!t.deliveredDate || t.deliveredDate < fromDate || t.deliveredDate > toDate) return;
+    t.items.forEach(it=>{
+      if(!it.deliveryQty) return;
+      qtyByItem[it.itemId] = (qtyByItem[it.itemId]||0) + it.deliveryQty;
+    });
+  });
+  const lines = cust.items
+    .filter(it => qtyByItem[it.id] > 0)
+    .map(it => ({ itemId: it.id, name: it.name, category: it.category, qty: qtyByItem[it.id], price: it.price||0, amount: qtyByItem[it.id] * (it.price||0) }));
+  const subtotal = lines.reduce((a,l)=> a+l.amount, 0);
+  return { cust, lines, subtotal };
+}
+function computeBillingLines(custId, month){
+  const { start, end } = monthBounds(month);
+  return computeBillingLinesRange(custId, start, end);
+}
+
+// Sum of delivered-item sales value for one customer between two dates (inclusive, 'YYYY-MM-DD').
+function computeSalesForRange(custId, fromDate, toDate){
+  const cust = state.customers.find(c=>c.id===custId);
+  if(!cust) return 0;
+  const priceById = {};
+  cust.items.forEach(it=> priceById[it.id] = it.price||0);
+  return ticketsFor(custId).reduce((sum, t)=>{
+    if(!t.deliveredDate || t.deliveredDate < fromDate || t.deliveredDate > toDate) return sum;
+    return sum + t.items.reduce((a,it)=> a + (it.deliveryQty||0) * (priceById[it.itemId]||0), 0);
+  }, 0);
+}
+function monthBounds(month){
+  const [y,m] = month.split('-').map(Number);
+  const start = `${month}-01`;
+  const end = `${month}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
+  return { start, end };
+}
+
+function resolveAdjAmount(type, value, subtotal){
+  return type === '%' ? subtotal * ((value||0)/100) : (value||0);
+}
+
+async function loadAdjustments(custId, month){
+  const key = custId+':'+month;
+  if(state.billingCache[key]) return state.billingCache[key];
+  let data = await storageGet('billing:'+key, true);
+  if(!data){
+    data = { discountType:'$', discountValue:0, discountNote:'', expressType:'$', expressValue:0, expressNote:'' };
+  }else if(data.discountType===undefined){
+    // migrate old plain-$ shape
+    data = { discountType:'$', discountValue: data.discount||0, discountNote: data.discountNote||'',
+      expressType:'$', expressValue: data.express||0, expressNote: data.expressNote||'' };
+  }
+  state.billingCache[key] = data;
+  return data;
+}
+async function saveAdjustments(custId, month, data){
+  const key = custId+':'+month;
+  state.billingCache[key] = data;
+  await storageSet('billing:'+key, data, true);
+}
+
+async function renderBillingTable(){
+  const o = state.office;
+  const box = document.getElementById('bl-table');
+  const cust0 = state.customers.find(c=>c.id===o.billingCust);
+  if(!cust0){ box.innerHTML=''; return; }
+  const isCash = cust0.billingType==='cash';
+  const period = isCash ? o.billingDate : o.billingMonth;
+  const periodLabel = isCash ? fmtDate(o.billingDate) : fmtMonth(o.billingMonth);
+  const { cust, lines, subtotal } = isCash
+    ? computeBillingLinesRange(o.billingCust, o.billingDate, o.billingDate)
+    : computeBillingLines(o.billingCust, o.billingMonth);
+  if(!cust){ box.innerHTML=''; return; }
+  const adj = await loadAdjustments(o.billingCust, period);
+  const discountAmt = resolveAdjAmount(adj.discountType, adj.discountValue, subtotal);
+  const expressAmt = resolveAdjAmount(adj.expressType, adj.expressValue, subtotal);
+  const total = subtotal - discountAmt + expressAmt;
+
+  const invoiceDate = isCash ? period : monthBounds(o.billingMonth).end;
+  const invoiceNo = ensureInvoiceNo(o.billingCust, period);
+  const dueDate = dueDateFor(cust, invoiceDate);
+
+  const rowsHtml = lines.map(l=>`
+    <tr>
+      <td class="itemname">${esc(l.name)}</td>
+      <td class="mono" style="text-align:center;">${l.qty}</td>
+      <td class="mono" style="text-align:right;">$${l.price.toFixed(2)}</td>
+      <td class="mono" style="text-align:right;font-weight:800;">$${l.amount.toFixed(2)}</td>
+    </tr>`).join('');
+
+  const typeSelect = (id, current) => `
+    <select id="${id}" class="field-input mono" style="width:60px;flex:none;padding:6px 4px;">
+      <option value="$" ${current==='$'?'selected':''}>$</option>
+      <option value="%" ${current==='%'?'selected':''}>%</option>
+    </select>`;
+
+  box.innerHTML = `
+    <div class="pill ${isCash?'open':'closed'}" style="margin-bottom:8px;">${isCash?'Cash — daily bill':'Credit — monthly bill'} · ${periodLabel}</div>
+
+    <div class="cust-card">
+      <div class="row2" style="margin-bottom:0;">
+        <div>
+          <label class="field-label">Customer</label>
+          <div style="font-weight:800;font-size:14px;">${esc(cust.name)}</div>
+          ${cust.contactName ? `<div style="font-size:12px;color:var(--stone-500);">${esc(cust.contactName)}</div>` : ''}
+          ${cust.phone ? `<div style="font-size:12px;color:var(--stone-500);">${esc(cust.phone)}</div>` : ''}
+          ${cust.address ? `<div style="font-size:12px;color:var(--stone-500);">${esc(cust.address)}</div>` : ''}
+        </div>
+        <div>
+          <label class="field-label">Invoice No.</label>
+          <input id="bl-invoiceno" type="text" class="field-input mono" value="${esc(invoiceNo)}" />
+        </div>
+      </div>
+      <div class="row2" style="margin-top:10px;margin-bottom:0;">
+        <div><label class="field-label">Invoice date</label>
+          <div class="mono" style="font-weight:700;padding:9px 0;">${fmtDate(invoiceDate)}</div>
+        </div>
+        <div><label class="field-label">Due date</label>
+          <div class="mono" style="font-weight:700;padding:9px 0;">${isCash ? 'Paid at delivery' : fmtDate(dueDate) + ` (${cust.paymentTermsDays==null?30:cust.paymentTermsDays} days)`}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="register-wrap mb16">
+      <table class="register" style="font-size:13px;">
+        <thead><tr>
+          <th class="itemname" style="position:static;">Item</th>
+          <th>Qty delivered</th>
+          <th style="text-align:right;">Unit price</th>
+          <th style="text-align:right;">Amount</th>
+        </tr></thead>
+        <tbody>
+          ${rowsHtml || `<tr><td class="itemname" colspan="4" style="color:var(--stone-400);font-style:italic;">No deliveries confirmed for ${esc(cust.name)} on ${periodLabel}.</td></tr>`}
+
+          <tr style="border-top:2px solid var(--stone-300);background:var(--stone-50);">
+            <td class="itemname" style="font-weight:900;text-transform:uppercase;" colspan="3">Subtotal</td>
+            <td class="mono" style="text-align:right;font-weight:900;">$${subtotal.toFixed(2)}</td>
+          </tr>
+
+          <tr style="background:var(--stone-50);">
+            <td colspan="3" style="text-align:left;">
+              <div style="font-weight:800;margin-bottom:4px;">Discount</div>
+              <div style="display:flex;gap:6px;max-width:260px;">
+                <input id="bl-discount-value" type="number" step="0.01" inputmode="decimal" class="field-input mono" style="flex:1;padding:6px 8px;" value="${adj.discountValue||0}" />
+                ${typeSelect('bl-discount-type', adj.discountType||'$')}
+              </div>
+              <input id="bl-discount-note" type="text" class="field-input" style="margin-top:5px;font-size:12px;max-width:260px;padding:5px 8px;" placeholder="Reason (e.g. loyalty discount)" value="${esc(adj.discountNote||'')}" />
+            </td>
+            <td class="mono" id="bl-discount-amt" style="text-align:right;font-weight:800;color:var(--amber-700);vertical-align:top;padding-top:12px;">−$${discountAmt.toFixed(2)}</td>
+          </tr>
+
+          <tr style="background:var(--stone-50);">
+            <td colspan="3" style="text-align:left;">
+              <div style="font-weight:800;margin-bottom:4px;">Express charge</div>
+              <div style="display:flex;gap:6px;max-width:260px;">
+                <input id="bl-express-value" type="number" step="0.01" inputmode="decimal" class="field-input mono" style="flex:1;padding:6px 8px;" value="${adj.expressValue||0}" />
+                ${typeSelect('bl-express-type', adj.expressType||'$')}
+              </div>
+              <input id="bl-express-note" type="text" class="field-input" style="margin-top:5px;font-size:12px;max-width:260px;padding:5px 8px;" placeholder="Reason (e.g. rush service)" value="${esc(adj.expressNote||'')}" />
+            </td>
+            <td class="mono" id="bl-express-amt" style="text-align:right;font-weight:800;color:var(--teal-700);vertical-align:top;padding-top:12px;">+$${expressAmt.toFixed(2)}</td>
+          </tr>
+
+          <tr style="border-top:2px solid var(--stone-900);">
+            <td class="itemname" style="font-weight:900;text-transform:uppercase;font-size:14px;" colspan="3">Total payable</td>
+            <td class="mono" id="bl-total" style="text-align:right;font-weight:900;font-size:16px;color:var(--teal-800);">$${total.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    ${state.paymentDetails ? `
+    <div class="cust-card" style="background:var(--stone-50);">
+      <label class="field-label">Payment to</label>
+      <div style="white-space:pre-line;font-size:13px;line-height:1.5;">${esc(state.paymentDetails)}</div>
+    </div>` : `<div class="legend">No payment details set yet — add your bank/payment instructions in Office → Customers &amp; Items so they print on every invoice.</div>`}
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <button id="bl-print" class="btn-dark">${isCash ? 'Print daily bill' : 'Print invoice'}</button>
+      ${isCash ? '' : `<button id="bl-support" class="btn-dark">Print support sheet</button>`}
+      <button id="bl-export" class="btn-dark">Export CSV</button>
+    </div>
+    <div class="legend">${isCash
+      ? `Cash customers are billed <b>daily</b> — this covers only items delivered &amp; confirmed on ${periodLabel}, paid at the time of delivery.`
+      : `Credit customers are billed <b>monthly</b> — this covers items delivered &amp; confirmed during ${periodLabel}, invoiced after the fact. Due date is set from this customer's payment terms (Office → Customers &amp; Items).`}
+      Discount and express charge can each be entered as a flat $ amount or a % of the subtotal — Subtotal, Discount, and Express charge combine straight down into Total payable above.</div>
+  `;
+
+  box.querySelector('#bl-invoiceno').addEventListener('change', async e=>{
+    const saved = await setInvoiceNo(o.billingCust, period, e.target.value);
+    e.target.value = saved;
+    showToast('Invoice number updated');
+  });
+
+  const currentAdj = () => ({
+    discountType: box.querySelector('#bl-discount-type').value,
+    discountValue: parseFloat(box.querySelector('#bl-discount-value').value)||0,
+    discountNote: box.querySelector('#bl-discount-note').value.trim(),
+    expressType: box.querySelector('#bl-express-type').value,
+    expressValue: parseFloat(box.querySelector('#bl-express-value').value)||0,
+    expressNote: box.querySelector('#bl-express-note').value.trim(),
+  });
+  const recalcTotal = () => {
+    const d = currentAdj();
+    const dAmt = resolveAdjAmount(d.discountType, d.discountValue, subtotal);
+    const eAmt = resolveAdjAmount(d.expressType, d.expressValue, subtotal);
+    box.querySelector('#bl-discount-amt').textContent = '−$'+dAmt.toFixed(2);
+    box.querySelector('#bl-express-amt').textContent = '+$'+eAmt.toFixed(2);
+    const t = subtotal - dAmt + eAmt;
+    box.querySelector('#bl-total').textContent = '$'+t.toFixed(2);
+    return t;
+  };
+  const persistAdj = async () => {
+    const data = currentAdj();
+    await saveAdjustments(o.billingCust, period, data);
+    return data;
+  };
+  ['#bl-discount-value','#bl-express-value','#bl-discount-type','#bl-express-type'].forEach(sel=>{
+    box.querySelector(sel).addEventListener('input', recalcTotal);
+    box.querySelector(sel).addEventListener('change', recalcTotal);
+  });
+  box.querySelector('#bl-discount-value').addEventListener('change', persistAdj);
+  box.querySelector('#bl-express-value').addEventListener('change', persistAdj);
+  box.querySelector('#bl-discount-type').addEventListener('change', persistAdj);
+  box.querySelector('#bl-express-type').addEventListener('change', persistAdj);
+  box.querySelector('#bl-discount-note').addEventListener('change', persistAdj);
+  box.querySelector('#bl-express-note').addEventListener('change', persistAdj);
+
+  box.querySelector('#bl-export').addEventListener('click', async ()=>{
+    const data = await persistAdj();
+    const dAmt = resolveAdjAmount(data.discountType, data.discountValue, subtotal);
+    const eAmt = resolveAdjAmount(data.expressType, data.expressValue, subtotal);
+    const finalTotal = subtotal - dAmt + eAmt;
+    const discountLabel = data.discountType==='%' ? `Discount (${data.discountValue}%)` : 'Discount';
+    const expressLabel = data.expressType==='%' ? `Express charge (${data.expressValue}%)` : 'Express charge';
+    const lines2 = [];
+    lines2.push([isCash?'Daily bill':'Monthly invoice', periodLabel].join(','));
+    lines2.push(['Invoice No.', invoiceNo].join(','));
+    lines2.push(['Customer', `"${cust.name}"`].join(','));
+    lines2.push(['Invoice date', fmtDate(invoiceDate)].join(','));
+    lines2.push(['Due date', isCash ? 'Paid at delivery' : fmtDate(dueDate)].join(','));
+    lines2.push([]);
+    lines2.push(['Item','Qty delivered','Unit price','Amount'].join(','));
+    lines.forEach(l=> lines2.push([`"${l.name}"`, l.qty, l.price.toFixed(2), l.amount.toFixed(2)].join(',')));
+    lines2.push(['Amount (before discount)','','',subtotal.toFixed(2)].join(','));
+    lines2.push([`${discountLabel}${data.discountNote?' ('+data.discountNote+')':''}`,'','', (-dAmt).toFixed(2)].join(','));
+    lines2.push([`${expressLabel}${data.expressNote?' ('+data.expressNote+')':''}`,'','', eAmt.toFixed(2)].join(','));
+    lines2.push(['Total Amount','','',finalTotal.toFixed(2)].join(','));
+    const blob = new Blob([lines2.join('\n')], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${cust.name.replace(/\s+/g,'_')}_${isCash?'daily_bill_'+period:'invoice_'+period}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  });
+
+  box.querySelector('#bl-print').addEventListener('click', async ()=>{
+    const data = await persistAdj();
+    buildPrintInvoice(cust, o.billingMonth, lines, subtotal, data, { isCash, periodLabel, invoiceNo, invoiceDate, dueDate });
+    window.print();
+  });
+
+  if(!isCash) box.querySelector('#bl-support').addEventListener('click', async ()=>{
+    const data = await persistAdj();
+    buildPrintSupportSheet(cust, o.billingMonth, lines, subtotal, data, { invoiceNo, invoiceDate, dueDate });
+    window.print();
+  });
+}
+
+function fmtMonth(m){
+  if(!m) return '—';
+  const [y,mo] = m.split('-').map(Number);
+  return new Date(y, mo-1, 1).toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+}
+
+function buildPrintInvoice(cust, month, lines, subtotal, adj, opts){
+  const { isCash=false, periodLabel=fmtMonth(month), invoiceNo='', invoiceDate='', dueDate='' } = opts||{};
+  const area = document.getElementById('print-area');
+  const discountAmt = resolveAdjAmount(adj.discountType, adj.discountValue, subtotal);
+  const expressAmt = resolveAdjAmount(adj.expressType, adj.expressValue, subtotal);
+  const total = subtotal - discountAmt + expressAmt;
+  const discountLabel = 'Discount' + (adj.discountType==='%' ? ` (${adj.discountValue}%)` : '') + (adj.discountNote?' — '+esc(adj.discountNote):'');
+  const expressLabel = 'Express charge' + (adj.expressType==='%' ? ` (${adj.expressValue}%)` : '') + (adj.expressNote?' — '+esc(adj.expressNote):'');
+  const rowsHtml = lines.map(l=>`
+    <tr>
+      <td class="pt-name">${esc(l.name)}</td>
+      <td>${l.qty}</td>
+      <td>$${l.price.toFixed(2)}</td>
+      <td>$${l.amount.toFixed(2)}</td>
+    </tr>`).join('');
+
+  area.innerHTML = `
+    <div class="pt-header">
+      <div>
+        <div class="pt-title">MEKONG LAUNDRY</div>
+        <div class="pt-sub">${isCash ? 'Daily Billing Statement (Cash)' : 'Monthly Billing Statement (Credit)'}</div>
+      </div>
+      <div style="text-align:right;font-size:12px;">
+        <div class="pt-ticketno mono">${esc(invoiceNo)}</div>
+        <div><b>${periodLabel}</b></div>
+      </div>
+    </div>
+    <div class="pt-meta">
+      <div><b>Customer</b>${esc(cust.name)}${cust.contactName?'<br/>'+esc(cust.contactName):''}${cust.phone?'<br/>'+esc(cust.phone):''}${cust.address?'<br/>'+esc(cust.address):''}</div>
+      <div><b>Invoice date</b>${fmtDate(invoiceDate)}</div>
+      <div><b>Due date</b>${isCash ? 'Paid at delivery' : fmtDate(dueDate)}</div>
+    </div>
+
+    <table class="pt-table">
+      <thead><tr><th>Item</th><th>Qty delivered</th><th>Unit price</th><th>Amount</th></tr></thead>
+      <tbody>${rowsHtml || `<tr><td colspan="4" class="pt-name">— no deliveries confirmed ${isCash?'on this day':'this month'} —</td></tr>`}</tbody>
+    </table>
+
+    <div style="display:flex;justify-content:flex-end;">
+      <table style="min-width:260px;font-size:12px;border-collapse:collapse;">
+        <tr><td style="padding:3px 8px;text-align:left;">Amount (before discount)</td><td style="padding:3px 8px;text-align:right;" class="mono">$${subtotal.toFixed(2)}</td></tr>
+        <tr><td style="padding:3px 8px;text-align:left;">${discountLabel}</td><td style="padding:3px 8px;text-align:right;" class="mono">−$${discountAmt.toFixed(2)}</td></tr>
+        <tr><td style="padding:3px 8px;text-align:left;">${expressLabel}</td><td style="padding:3px 8px;text-align:right;" class="mono">$${expressAmt.toFixed(2)}</td></tr>
+        <tr style="border-top:2px solid #000;"><td style="padding:6px 8px;text-align:left;font-weight:800;">Total Amount</td><td style="padding:6px 8px;text-align:right;font-weight:800;" class="mono">$${total.toFixed(2)}</td></tr>
+      </table>
+    </div>
+    ${state.paymentDetails ? `<div style="margin-top:16px;border-top:1px solid #999;padding-top:8px;font-size:11px;"><b>Payment to:</b><div style="white-space:pre-line;margin-top:2px;">${esc(state.paymentDetails)}</div></div>` : ''}
+    ${isCash ? '' : `<div style="margin-top:10px;font-size:10px;color:#555;">See the accompanying daily support sheet for the day-by-day delivery detail behind this total.</div>`}
+  `;
+}
+
+function daysInMonthList(month){
+  const [year, mon] = month.split('-').map(Number);
+  const daysInMonth = new Date(year, mon, 0).getDate();
+  return Array.from({length:daysInMonth}, (_,i)=>i+1);
+}
+
+function buildPrintSupportSheet(cust, month, lines, subtotal, adj, opts){
+  const { invoiceNo='', invoiceDate='', dueDate='' } = opts||{};
+  const area = document.getElementById('print-area');
+  const discountAmt = resolveAdjAmount(adj.discountType, adj.discountValue, subtotal);
+  const expressAmt = resolveAdjAmount(adj.expressType, adj.expressValue, subtotal);
+  const total = subtotal - discountAmt + expressAmt;
+  const discountLabel = 'Discount' + (adj.discountType==='%' ? ` (${adj.discountValue}%)` : '') + (adj.discountNote?' — '+esc(adj.discountNote):'');
+  const expressLabel = 'Express charge' + (adj.expressType==='%' ? ` (${adj.expressValue}%)` : '') + (adj.expressNote?' — '+esc(adj.expressNote):'');
+  const tickets = ticketsFor(cust.id);
+  const dayList = daysInMonthList(month);
+  const dateStr = (day) => `${month}-${String(day).padStart(2,'0')}`;
+
+  const perDay = (itemId, day) => {
+    const d = dateStr(day);
+    return tickets.filter(t=>t.deliveredDate===d).reduce((a,t)=> a+(t.items.find(i=>i.itemId===itemId)?.deliveryQty||0),0);
+  };
+
+  const headDays = dayList.map(d=>`<th style="min-width:16px;">${d}</th>`).join('');
+  const rowsHtml = lines.map(l=>{
+    const dayCells = dayList.map(d=>{
+      const q = perDay(l.itemId, d);
+      return `<td>${q||''}</td>`;
+    }).join('');
+    return `<tr>
+      <td class="pt-name">${esc(l.name)}</td>
+      ${dayCells}
+      <td style="font-weight:800;">${l.qty}</td>
+      <td>$${l.price.toFixed(2)}</td>
+      <td style="font-weight:800;">$${l.amount.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  const totalDayCells = dayList.map(d=>{
+    const t = lines.reduce((a,l)=> a+perDay(l.itemId,d), 0);
+    return `<td style="font-weight:800;">${t||''}</td>`;
+  }).join('');
+
+  area.innerHTML = `
+    <div class="pt-header">
+      <div>
+        <div class="pt-title">MEKONG LAUNDRY</div>
+        <div class="pt-sub">Daily Delivery Support Sheet</div>
+      </div>
+      <div style="text-align:right;font-size:12px;">
+        <div class="pt-ticketno mono">${esc(invoiceNo)}</div>
+        <div><b>${fmtMonth(month)}</b></div>
+      </div>
+    </div>
+    <div class="pt-meta">
+      <div><b>Customer</b>${esc(cust.name)}${cust.phone?'<br/>'+esc(cust.phone):''}</div>
+      <div><b>Invoice date</b>${invoiceDate?fmtDate(invoiceDate):fmtMonth(month)}</div>
+      <div><b>Due date</b>${dueDate?fmtDate(dueDate):'—'}</div>
+    </div>
+
+    <table class="pt-table" style="font-size:9px;">
+      <thead><tr>
+        <th style="text-align:left;">Item</th>${headDays}
+        <th>Month total</th><th>Unit price</th><th>Amount</th>
+      </tr></thead>
+      <tbody>
+        ${rowsHtml || `<tr><td colspan="${dayList.length+4}" class="pt-name">— no deliveries confirmed this month —</td></tr>`}
+        <tr style="background:#eee;">
+          <td class="pt-name" style="font-weight:800;">Daily total</td>
+          ${totalDayCells}
+          <td style="font-weight:800;">${lines.reduce((a,l)=>a+l.qty,0)}</td><td></td><td style="font-weight:800;">$${subtotal.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+      <table style="min-width:260px;font-size:12px;border-collapse:collapse;">
+        <tr><td style="padding:3px 8px;text-align:left;">Amount (before discount)</td><td style="padding:3px 8px;text-align:right;" class="mono">$${subtotal.toFixed(2)}</td></tr>
+        <tr><td style="padding:3px 8px;text-align:left;">${discountLabel}</td><td style="padding:3px 8px;text-align:right;" class="mono">−$${discountAmt.toFixed(2)}</td></tr>
+        <tr><td style="padding:3px 8px;text-align:left;">${expressLabel}</td><td style="padding:3px 8px;text-align:right;" class="mono">$${expressAmt.toFixed(2)}</td></tr>
+        <tr style="border-top:2px solid #000;"><td style="padding:6px 8px;text-align:left;font-weight:800;">Total Amount</td><td style="padding:6px 8px;text-align:right;font-weight:800;" class="mono">$${total.toFixed(2)}</td></tr>
+      </table>
+    </div>
+    ${state.paymentDetails ? `<div style="margin-top:16px;border-top:1px solid #999;padding-top:8px;font-size:11px;"><b>Payment to:</b><div style="white-space:pre-line;margin-top:2px;">${esc(state.paymentDetails)}</div></div>` : ''}
+    <div style="margin-top:10px;font-size:10px;color:#555;">This sheet backs the monthly invoice — each item's daily delivered quantities sum to its month total, priced at the unit price on file.</div>
+  `;
+}
+
+/* ---------- Sales tab ---------- */
+function renderSalesTab(box){
+  const o = state.office;
+  box.innerHTML = `
+    <div class="row2" style="margin-bottom:12px;">
+      <div><label class="field-label">Month</label>
+        <input id="sl-month" type="month" class="field-input mono" value="${o.salesMonth}" />
+      </div>
+      <div></div>
+    </div>
+    <div id="sl-body"></div>
+  `;
+  box.querySelector('#sl-month').addEventListener('input', e=>{ o.salesMonth = e.target.value; drawSales(); });
+  drawSales();
+
+  function drawSales(){
+    const body = box.querySelector('#sl-body');
+    const month = o.salesMonth;
+    const today = todayStr();
+    const { start, end } = monthBounds(month);
+    const mtdEnd = today < end ? (today < start ? start : today) : end;
+    const fmt = (n)=> n ? '$'+n.toFixed(2) : '–';
+
+    const rows = state.customers.map(c=>{
+      const mSales = computeSalesForRange(c.id, start, end);
+      const mtdSales = computeSalesForRange(c.id, start, mtdEnd);
+      const tSales = computeSalesForRange(c.id, today, today);
+      const isCash = (c.billingType||'credit')==='cash';
+      return {
+        c,
+        todayCash: isCash ? tSales : 0, todayCredit: isCash ? 0 : tSales,
+        mtdCash: isCash ? mtdSales : 0, mtdCredit: isCash ? 0 : mtdSales,
+        monthCash: isCash ? mSales : 0, monthCredit: isCash ? 0 : mSales,
+        monthTotal: mSales, mtdSales, tSales,
+      };
+    }).filter(r=> r.monthTotal>0 || r.mtdSales>0 || r.tSales>0);
+
+    rows.sort((a,b)=> b.monthTotal - a.monthTotal);
+
+    const totals = rows.reduce((a,r)=>({
+      todayCash:a.todayCash+r.todayCash, todayCredit:a.todayCredit+r.todayCredit,
+      mtdCash:a.mtdCash+r.mtdCash, mtdCredit:a.mtdCredit+r.mtdCredit,
+      monthCash:a.monthCash+r.monthCash, monthCredit:a.monthCredit+r.monthCredit,
+      monthTotal:a.monthTotal+r.monthTotal,
+    }), {todayCash:0,todayCredit:0,mtdCash:0,mtdCredit:0,monthCash:0,monthCredit:0,monthTotal:0});
+
+    body.innerHTML = `
+      <div class="section-label">
+        <span>Sales report — ${fmtMonth(month)}</span>
+        <span style="display:flex;gap:14px;">
+          <button id="sl-export" class="link-btn">Export report (CSV)</button>
+          <button id="sl-export-acct" class="link-btn">Export for accounting (CSV)</button>
+        </span>
+      </div>
+      <div class="register-wrap">
+        <table class="register" style="font-size:12.5px;">
+          <thead>
+            <tr>
+              <th class="itemname" style="position:static;" rowspan="2">No.</th>
+              <th style="position:static;text-align:left;" rowspan="2">Customer</th>
+              <th colspan="2">Today</th>
+              <th colspan="2">Month-to-date</th>
+              <th colspan="3" style="border-left-width:2px;">${fmtMonth(month)}</th>
+            </tr>
+            <tr>
+              <th>Cash</th><th>Credit</th>
+              <th>Cash</th><th>Credit</th>
+              <th style="border-left-width:2px;">Cash</th><th>Credit</th><th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r,i)=>`
+              <tr>
+                <td class="itemname">${i+1}</td>
+                <td class="itemname" style="position:static;">${esc(r.c.name)} <span class="pill ${r.c.billingType==='cash'?'open':'closed'}" style="margin-bottom:0;">${r.c.billingType==='cash'?'Cash':'Credit'}</span></td>
+                <td class="mono">${fmt(r.todayCash)}</td>
+                <td class="mono">${fmt(r.todayCredit)}</td>
+                <td class="mono">${fmt(r.mtdCash)}</td>
+                <td class="mono">${fmt(r.mtdCredit)}</td>
+                <td class="mono" style="border-left-width:2px;">${fmt(r.monthCash)}</td>
+                <td class="mono">${fmt(r.monthCredit)}</td>
+                <td class="mono" style="font-weight:800;">${fmt(r.monthTotal)}</td>
+              </tr>`).join('') || `<tr><td class="itemname" colspan="9" style="color:var(--stone-400);font-style:italic;">No deliveries confirmed in ${fmtMonth(month)} yet.</td></tr>`}
+            <tr style="border-top:2px solid var(--stone-300);background:var(--stone-50);">
+              <td class="itemname" colspan="2" style="font-weight:900;text-transform:uppercase;">Total</td>
+              <td class="mono owed-cell2" style="border-left-width:1px;">${fmt(totals.todayCash)}</td>
+              <td class="mono" style="font-weight:900;">${fmt(totals.todayCredit)}</td>
+              <td class="mono" style="font-weight:900;">${fmt(totals.mtdCash)}</td>
+              <td class="mono" style="font-weight:900;">${fmt(totals.mtdCredit)}</td>
+              <td class="mono owed-cell2" style="font-weight:900;">${fmt(totals.monthCash)}</td>
+              <td class="mono" style="font-weight:900;">${fmt(totals.monthCredit)}</td>
+              <td class="mono" style="font-weight:900;color:var(--teal-800);">${fmt(totals.monthTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="legend">Sales = items delivered &amp; confirmed × unit price (matches the Billing tab's subtotal, before any discount or express charge). Each customer is either <b>Cash</b> (paid at delivery) or <b>Credit</b> (invoiced monthly) — set in Customers &amp; Items — so a row only ever has values in one of each Cash/Credit pair. <b>Export for accounting</b> gives Cash and Credit sales as two separate, per-customer lists for posting.</div>
+    `;
+
+    body.querySelector('#sl-export').addEventListener('click', ()=>{
+      const lines = [];
+      lines.push(['No.','Customer','Type','Today Cash','Today Credit','MTD Cash','MTD Credit','Month Cash','Month Credit','Month Total'].join(','));
+      rows.forEach((r,i)=> lines.push([i+1, `"${r.c.name}"`, r.c.billingType==='cash'?'Cash':'Credit',
+        r.todayCash.toFixed(2), r.todayCredit.toFixed(2), r.mtdCash.toFixed(2), r.mtdCredit.toFixed(2),
+        r.monthCash.toFixed(2), r.monthCredit.toFixed(2), r.monthTotal.toFixed(2)].join(',')));
+      lines.push(['','Total','', totals.todayCash.toFixed(2), totals.todayCredit.toFixed(2), totals.mtdCash.toFixed(2), totals.mtdCredit.toFixed(2),
+        totals.monthCash.toFixed(2), totals.monthCredit.toFixed(2), totals.monthTotal.toFixed(2)].join(','));
+      const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `sales_${month}.csv`;
+      a.click(); URL.revokeObjectURL(url);
+    });
+
+    body.querySelector('#sl-export-acct').addEventListener('click', ()=>{
+      const cashRows = rows.filter(r=> r.c.billingType==='cash' && r.monthCash>0).sort((a,b)=> b.monthCash-a.monthCash);
+      const creditRows = rows.filter(r=> r.c.billingType!=='cash' && r.monthCredit>0).sort((a,b)=> b.monthCredit-a.monthCredit);
+      const lines = [];
+      lines.push([`Monthly sales for posting — ${fmtMonth(month)}`].join(','));
+      lines.push([]);
+      lines.push(['CASH SALES'].join(','));
+      lines.push(['Customer','Amount'].join(','));
+      cashRows.forEach(r=> lines.push([`"${r.c.name}"`, r.monthCash.toFixed(2)].join(',')));
+      lines.push(['Total cash sales', totals.monthCash.toFixed(2)].join(','));
+      lines.push([]);
+      lines.push(['CREDIT SALES'].join(','));
+      lines.push(['Customer','Amount'].join(','));
+      creditRows.forEach(r=> lines.push([`"${r.c.name}"`, r.monthCredit.toFixed(2)].join(',')));
+      lines.push(['Total credit sales', totals.monthCredit.toFixed(2)].join(','));
+      lines.push([]);
+      lines.push(['Grand total', totals.monthTotal.toFixed(2)].join(','));
+      const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `accounting_sales_${month}.csv`;
+      a.click(); URL.revokeObjectURL(url);
+    });
+  }
+}
+
+/* ---------- Admin tab ---------- */
+function renderAdminTab(box){
+  let localCust = JSON.parse(JSON.stringify(state.customers));
+  let localPaymentDetails = state.paymentDetails;
+  let dirty = false;
+  let activeCustId = localCust[0]?.id || null;
+
+  function markDirty(){
+    dirty = true;
+    state.hasUnsavedDraft = true;
+    const btn = box.querySelector('#ad-save');
+    if(btn){ btn.disabled = false; btn.textContent = 'Save changes'; }
+  }
+
+  function draw(){
+    const isOwnerRole = state.currentUser && state.currentUser.role==='owner';
+    box.innerHTML = `
+      <div class="cust-card" style="background:var(--stone-50);">
+        <div class="section-label"><span>Backup &amp; restore</span></div>
+        <div style="font-size:12px;color:var(--stone-500);margin-bottom:10px;">
+          <b>Automatic:</b> a full snapshot saves itself inside this app every day it's opened (last 14 days kept) — no button needed. Good protection against mistakes.<br/>
+          <b>Not automatic:</b> nothing leaves this app by itself — there's no server behind it to email or upload a file while nobody's looking. If this hosted link is ever lost entirely, the daily snapshots go with it. <b>Download a copy externally (email, Drive, USB) every day</b> — you'll see a red alert at the top of Office until it's done, cleared automatically once you download.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <button id="ad-backup-download" class="btn-dark" style="background:var(--teal-700);">Download backup (.json)</button>
+          <button id="ad-backup-restore-btn" class="btn-outline" style="padding:8px 14px;">Restore from file…</button>
+          <input id="ad-backup-file" type="file" accept="application/json" style="display:none;" />
+        </div>
+        <label class="field-label">Recent automatic snapshots</label>
+        <div id="ad-autobackups" style="font-size:12px;color:var(--stone-400);">Loading…</div>
+      </div>
+
+      ${isOwnerRole ? `
+      <div class="cust-card" style="background:var(--rose-50);border:1px solid var(--rose-100);">
+        <div class="section-label"><span style="color:var(--rose-600);">Factory reset</span></div>
+        <div style="font-size:12px;color:var(--stone-600);margin-bottom:10px;">
+          Permanently deletes every customer, ticket, invoice, and pending approval, and removes every Admin and Worker account — only your Owner login stays. The security key is not affected. This cannot be undone; download a backup first if there's any chance you'll want this data again.
+        </div>
+        <button id="ad-factory-reset" class="btn-dark" style="background:var(--rose-600);">Reset everything…</button>
+      </div>` : ''}
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <button id="ad-loaddemo" class="link-btn">Load demo data (2 credit + 1 cash customer, sample tickets)</button>
+      </div>
+
+      <div class="cust-card">
+        <div class="section-label"><span>Payment details</span><span style="font-weight:600;text-transform:none;letter-spacing:0;">printed on every invoice</span></div>
+        <label class="field-label">Payment to (bank / account / instructions)</label>
+        <textarea id="ad-paymentdetails" class="field-input" rows="3" placeholder="e.g. ABA Bank — Mekong Laundry Co., Ltd. — Account No. 000-000-000&#10;Or cash/cheque to the office">${esc(localPaymentDetails)}</textarea>
+      </div>
+
+      <div class="section-label"><span>Customers</span></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input id="ad-newcust" class="field-input" style="flex:1;" placeholder="New customer name" />
+        <button id="ad-addcust" class="btn-dark" style="background:var(--teal-700);">Add</button>
+      </div>
+      <div id="ad-custlist" class="mb16"></div>
+
+      <div id="ad-editor"></div>
+
+      <button id="ad-save" class="btn-primary" ${dirty?'':'disabled'} style="width:100%;margin-top:8px;">${dirty ? (isOwnerRole?'Save changes':'Submit for approval') : (isOwnerRole?'Saved':'Nothing pending')}</button>
+      ${!isOwnerRole ? `<div class="legend">As an Admin, changes here go to another Admin, then the Owner, before they take effect. See Office → Approvals.</div>` : ''}
+    `;
+
+    box.querySelector('#ad-paymentdetails').addEventListener('change', e=>{ localPaymentDetails = e.target.value; markDirty(); });
+
+    box.querySelector('#ad-backup-download').addEventListener('click', async ()=>{
+      const btn = box.querySelector('#ad-backup-download');
+      btn.disabled = true; btn.textContent = 'Preparing…';
+      await downloadBackup();
+      btn.disabled = false; btn.textContent = 'Download backup (.json)';
+    });
+    const fileInput = box.querySelector('#ad-backup-file');
+    box.querySelector('#ad-backup-restore-btn').addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', async ()=>{
+      if(fileInput.files && fileInput.files[0]) await restoreBackup(fileInput.files[0]);
+      fileInput.value = '';
+    });
+
+    (async ()=>{
+      const keys = await storageListKeys('autobackup:', true);
+      const dates = keys.map(k=>k.replace('autobackup:','')).sort().reverse();
+      const listEl = box.querySelector('#ad-autobackups');
+      if(!listEl) return; // tab may have been switched away already
+      if(!dates.length){ listEl.textContent = 'None yet — the first one saves next time this app is opened.'; return; }
+      listEl.innerHTML = dates.map(d=>`
+        <div class="item-line">
+          <span>${fmtDate(d)}${d===todayStr()?' (today)':''}</span>
+          <button data-restoreauto="${d}" class="link-btn">Restore this day</button>
+        </div>`).join('');
+      listEl.querySelectorAll('[data-restoreauto]').forEach(b=> b.addEventListener('click', ()=> restoreFromAutoBackup(b.dataset.restoreauto)));
+    })();
+
+    const resetBtn = box.querySelector('#ad-factory-reset');
+    if(resetBtn) resetBtn.addEventListener('click', async ()=>{
+      const first = confirm('This permanently deletes ALL customers, tickets, invoices, pending approvals, and every Admin/Worker account. Only your Owner login survives. This CANNOT be undone.\n\nContinue?');
+      if(!first) return;
+      const typed = prompt('Type RESET (all capitals) to confirm permanent deletion of all data:');
+      if(typed !== 'RESET'){ showToast('Reset cancelled — text did not match'); return; }
+      resetBtn.disabled = true; resetBtn.textContent = 'Resetting…';
+      await factoryReset();
+      showToast('Factory reset complete');
+    });
+
+    box.querySelector('#ad-loaddemo').addEventListener('click', async ()=>{
+      if(!confirm('Add 2 credit customers and 1 cash customer (if not already present) with sample pickup/delivery tickets, including Short/Over examples? This only adds — it will not remove or change your existing data.')) return;
+      await seedDemoData();
+      localCust = JSON.parse(JSON.stringify(state.customers));
+      showToast('Demo data loaded');
+      draw();
+    });
+
+    const custList = box.querySelector('#ad-custlist');
+    custList.innerHTML = localCust.map(c=>`
+      <div class="item-line" style="${c.id===activeCustId?'background:var(--teal-50);':''}">
+        <button data-editcust="${c.id}" style="background:none;font-weight:800;text-align:left;flex:1;display:flex;align-items:center;gap:8px;color:${c.id===activeCustId?'var(--teal-800)':'var(--stone-900)'};">
+          ${esc(c.name)}
+          <span class="pill ${c.billingType==='cash'?'open':'closed'}" style="margin-bottom:0;">${c.billingType==='cash'?'Cash':'Credit'}</span>
+        </button>
+        <button data-removecust="${c.id}" style="background:none;color:var(--rose-600);font-weight:800;font-size:14px;">×</button>
+      </div>`).join('') || `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">No customers yet.</div>`;
+
+    box.querySelector('#ad-addcust').addEventListener('click', ()=>{
+      const inp = box.querySelector('#ad-newcust');
+      if(!inp.value.trim()) return;
+      const nc = buildDefaultCustomer(uid(), inp.value.trim());
+      localCust.push(nc);
+      activeCustId = nc.id;
+      markDirty(); draw();
+    });
+    custList.querySelectorAll('[data-editcust]').forEach(b=> b.addEventListener('click', ()=>{ activeCustId = b.dataset.editcust; draw(); }));
+    custList.querySelectorAll('[data-removecust]').forEach(b=> b.addEventListener('click', ()=>{
+      if(!confirm('Remove this customer? Existing tickets stay in storage but the customer will no longer show in dropdowns.')) return;
+      localCust = localCust.filter(c=>c.id!==b.dataset.removecust);
+      if(activeCustId===b.dataset.removecust) activeCustId = localCust[0]?.id || null;
+      markDirty(); draw();
+    }));
+
+    const editorBox = box.querySelector('#ad-editor');
+    const cust = localCust.find(c=>c.id===activeCustId);
+    if(!cust){ editorBox.innerHTML = ''; }
+    else drawCustomerEditor(editorBox, cust);
+
+    box.querySelector('#ad-save').addEventListener('click', async ()=>{
+      const role = state.currentUser ? state.currentUser.role : 'worker';
+      if(role === 'owner'){
+        await saveCustomers(localCust);
+        state.paymentDetails = localPaymentDetails;
+        await storageSet('paymentDetails', localPaymentDetails, true);
+        dirty=false; state.hasUnsavedDraft = false; draw(); showToast('Saved');
+      } else {
+        // Admins can't publish item/price changes directly — this goes into the
+        // approval queue: another Admin approves, then the Owner gives final approval.
+        const change = {
+          id: uid(),
+          proposedBy: currentUserName(),
+          proposedAt: new Date().toISOString(),
+          customersSnapshot: localCust,
+          paymentDetailsSnapshot: localPaymentDetails,
+          status: 'pending_admin_approval',
+          adminApprovedBy: null, adminApprovedAt: null,
+          ownerApprovedBy: null, ownerApprovedAt: null,
+        };
+        await savePendingChanges([...state.pendingChanges, change]);
+        dirty=false; state.hasUnsavedDraft = false; draw();
+        showToast('Submitted for approval — needs another Admin, then the Owner');
+      }
+    });
+  }
+
+  function drawCustomerEditor(editorBox, cust){
+    // ensure exactly 5 section slots
+    while(cust.sections.length < 5) cust.sections.push(`Section ${cust.sections.length+1}`);
+    if(!cust.billingType) cust.billingType = 'credit';
+
+    editorBox.innerHTML = `
+      <div class="cust-card">
+        <div class="section-label"><span>Customer details</span></div>
+        <div class="row2">
+          <div>
+            <label class="field-label">Billing type</label>
+            <select id="ad-billingtype" class="field-input">
+              <option value="credit" ${cust.billingType==='credit'?'selected':''}>Credit — billed monthly</option>
+              <option value="cash" ${cust.billingType==='cash'?'selected':''}>Cash — paid at delivery</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Contact person</label>
+            <input type="text" id="ad-contact" class="field-input" value="${esc(cust.contactName||'')}" />
+          </div>
+        </div>
+        <div class="row2" style="margin-bottom:0;">
+          <div>
+            <label class="field-label">Phone</label>
+            <input type="text" id="ad-phone" class="field-input" value="${esc(cust.phone||'')}" />
+          </div>
+          <div>
+            <label class="field-label">Address</label>
+            <input type="text" id="ad-address" class="field-input" value="${esc(cust.address||'')}" />
+          </div>
+        </div>
+        ${cust.billingType==='cash' ? '' : `
+        <div class="row2" style="margin-bottom:0;margin-top:10px;">
+          <div>
+            <label class="field-label">Payment terms (days until due)</label>
+            <input type="number" id="ad-terms" class="field-input mono" style="max-width:120px;" min="0" value="${cust.paymentTermsDays==null?30:cust.paymentTermsDays}" />
+          </div>
+          <div></div>
+        </div>`}
+      </div>
+
+      <div class="section-label" style="margin-top:8px;"><span>Editing: ${esc(cust.name)}</span><span style="font-weight:600;text-transform:none;letter-spacing:0;">5 sections · ★ = frequent (moves up) · 👁 = hidden from the field form</span></div>
+      <div id="ad-sections"></div>
+    `;
+
+    editorBox.querySelector('#ad-billingtype').addEventListener('change', e=>{ cust.billingType = e.target.value; markDirty(); drawCustomerEditor(editorBox, cust); });
+    editorBox.querySelector('#ad-contact').addEventListener('change', e=>{ cust.contactName = e.target.value.trim(); markDirty(); });
+    editorBox.querySelector('#ad-phone').addEventListener('change', e=>{ cust.phone = e.target.value.trim(); markDirty(); });
+    editorBox.querySelector('#ad-address').addEventListener('change', e=>{ cust.address = e.target.value.trim(); markDirty(); });
+    const termsInput = editorBox.querySelector('#ad-terms');
+    if(termsInput) termsInput.addEventListener('change', e=>{ cust.paymentTermsDays = Math.max(0, parseInt(e.target.value||'30',10)); markDirty(); });
+
+    const secBox = editorBox.querySelector('#ad-sections');
+    secBox.innerHTML = cust.sections.map((sec, sidx)=>{
+      const items = cust.items.filter(it=>it.category===sec);
+      return `
+      <div class="cust-card">
+        <input type="text" class="field-input" style="font-weight:800;margin-bottom:8px;" data-sectionname="${sidx}" value="${esc(sec)}" />
+        <div data-sectionitems="${sidx}">
+          ${items.length ? items.map(it=>`
+            <div class="item-line">
+              <span style="flex:1;display:flex;align-items:center;gap:6px;">
+                <button data-toggle-freq="${it.id}" title="Mark as frequently used" style="background:none;font-size:15px;color:${it.frequent?'var(--amber-700)':'var(--stone-300)'};">★</button>
+                <button data-toggle-hidden="${it.id}" title="Hide from the field form" style="background:none;font-size:14px;color:${it.hidden?'var(--rose-600)':'var(--stone-300)'};">👁</button>
+                <span style="${it.hidden?'color:var(--stone-400);font-style:italic;':''}">${esc(it.name)}</span>
+                <span class="mono" style="color:var(--stone-400);font-size:11px;">$${Number(it.price||0).toFixed(2)}</span>
+              </span>
+              <button data-removeitem="${it.id}" style="background:none;color:var(--rose-600);font-weight:800;font-size:14px;">×</button>
+            </div>`).join('') : `<div style="font-size:12px;color:var(--stone-400);font-style:italic;margin-bottom:6px;">No items in this section yet.</div>`}
+        </div>
+        <div class="additem-row">
+          <input type="text" placeholder="Item name" data-itemname="${sidx}" />
+          <input type="number" step="0.01" inputmode="decimal" placeholder="$" data-itemprice="${sidx}" />
+          <button data-additem="${sidx}">+</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    secBox.querySelectorAll('[data-sectionname]').forEach(inp=> inp.addEventListener('input', ()=>{
+      const sidx = parseInt(inp.dataset.sectionname,10);
+      const oldName = cust.sections[sidx];
+      const newName = inp.value.trim() || `Section ${sidx+1}`;
+      if(oldName===newName) return;
+      cust.items.forEach(it=>{ if(it.category===oldName) it.category = newName; });
+      cust.sections[sidx] = newName;
+      markDirty();
+      // re-key the items container's data attribute without a full redraw, so focus isn't lost
+      const itemsContainer = secBox.querySelector(`[data-sectionitems="${sidx}"]`);
+      if(itemsContainer) itemsContainer.dataset.sectionitems = sidx;
+    }));
+
+    secBox.querySelectorAll('[data-toggle-freq]').forEach(b=> b.addEventListener('click', ()=>{
+      const it = cust.items.find(x=>x.id===b.dataset.toggleFreq);
+      it.frequent = !it.frequent;
+      markDirty(); drawCustomerEditor(editorBox, cust);
+    }));
+    secBox.querySelectorAll('[data-toggle-hidden]').forEach(b=> b.addEventListener('click', ()=>{
+      const it = cust.items.find(x=>x.id===b.dataset.toggleHidden);
+      it.hidden = !it.hidden;
+      markDirty(); drawCustomerEditor(editorBox, cust);
+    }));
+    secBox.querySelectorAll('[data-removeitem]').forEach(b=> b.addEventListener('click', ()=>{
+      cust.items = cust.items.filter(it=>it.id!==b.dataset.removeitem);
+      markDirty(); drawCustomerEditor(editorBox, cust);
+    }));
+    secBox.querySelectorAll('[data-additem]').forEach(b=> b.addEventListener('click', ()=>{
+      const sidx = parseInt(b.dataset.additem,10);
+      const nameInp = secBox.querySelector(`[data-itemname="${sidx}"]`);
+      const priceInp = secBox.querySelector(`[data-itemprice="${sidx}"]`);
+      const name = nameInp.value.trim();
+      if(!name) return;
+      cust.items.push({ id: uid(), name, category: cust.sections[sidx], price: parseFloat(priceInp.value)||0, frequent:false, hidden:false });
+      markDirty(); drawCustomerEditor(editorBox, cust);
+    }));
+  }
+
+  draw();
+}
+
+init();
+</script>
+</body>
+</html>
