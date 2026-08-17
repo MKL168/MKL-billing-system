@@ -128,6 +128,13 @@
   .pt-sign-img{height:48px;margin-bottom:2px;}
   .pt-sign-line{border-top:1px solid #000;margin-top:36px;padding-top:4px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;}
   .pt-sign-sub{font-size:9px;color:#555;}
+
+  /* On narrow phones, stack the two signature boxes instead of side-by-side —
+     keeps both canvases aligned regardless of label length, and gives each
+     signature enough width to actually sign comfortably with a finger. */
+  @media (max-width: 480px){
+    .sig-grid{grid-template-columns:1fr;gap:18px;}
+  }
 </style>
 </head>
 <body>
@@ -135,6 +142,39 @@
 <div id="print-area"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- ============================================================
+     FIREBASE SETUP — replace the placeholder values below with
+     YOUR real config from Firebase Console → Project settings →
+     Your apps → (the web app) → SDK setup and configuration.
+     This uses Realtime Database (matching MKL MS2's setup), not
+     Firestore. The extra "databaseURL" field is required for
+     Realtime Database — copy it from the top of the Realtime
+     Database page in the Firebase console (looks like
+     https://YOUR_PROJECT-default-rtdb.REGION.firebasedatabase.app).
+     Reusing the same project as MKL MS2 is fine — this app's data
+     lives under its own root node (see DB_ROOT below) so it never
+     collides with MS2's data in the same database.
+     ============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDlMpeyuz13S8ib7uFaUojZH4H2U0Lf5rw",
+    authDomain: "mkl-ms2.firebaseapp.com",
+    databaseURL: "https://mkl-ms2-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "mkl-ms2",
+    storageBucket: "mkl-ms2.firebasestorage.app",
+    messagingSenderId: "766863194780",
+    appId: "1:766863194780:web:fb14dc689484e0485bcb59",
+    measurementId: "G-C92SCNB624",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const mklDb = firebase.database();
+  // Separate namespace from MKL MS2's data inside the same Realtime Database.
+  const DB_ROOT = 'mkl_billing_kv';
+</script>
+
 <script>
 /* If the SheetJS CDN can't load (offline / blocked), Excel export below
    falls back to CSV automatically — see exportInvoicesExcel(). *//* ================================================================
@@ -198,33 +238,48 @@ const DEFAULT_CUSTOMERS = [
 ];
 
 /* ---------------- storage ---------------- */
-/* Standalone build: everything lives in this browser's own localStorage.
-   No server, no functions, no external accounts — works the moment this
-   single file is opened, including straight from GitHub Pages. The one
-   real trade-off: data stays on THIS device/browser only. It will not
-   sync between different phones/computers — each one keeps its own copy.
-   If you outgrow that, the app can be pointed at a real shared backend
-   (Firebase, or the Netlify Functions version) without changing anything
-   above this point in the file. */
+/* Firebase build: "shared" data (shared=true, almost everything) lives in
+   Realtime Database, under its own root node (DB_ROOT, set above) so every
+   device sees the same live data and it never collides with other apps
+   (like MKL MS2) sharing the same Firebase project. "Personal" data
+   (shared=false — just which account this device is logged in as) stays
+   in this browser's own localStorage, since that's genuinely per-device
+   and needs no database call at all. */
 async function storageGet(key, shared){
-  try{ const v = localStorage.getItem('mkl:'+key); return v!=null ? JSON.parse(v) : null; }catch(e){ return null; }
+  if(shared === false){
+    try{ const v = localStorage.getItem('mkl:'+key); return v!=null ? JSON.parse(v) : null; }catch(e){ return null; }
+  }
+  try{
+    const snap = await mklDb.ref(DB_ROOT + '/' + key).once('value');
+    return snap.exists() ? snap.val() : null;
+  }catch(e){ return null; }
 }
 async function storageSet(key, value, shared){
-  try{ localStorage.setItem('mkl:'+key, JSON.stringify(value)); return true; }catch(e){ return false; }
+  if(shared === false){
+    try{ localStorage.setItem('mkl:'+key, JSON.stringify(value)); return true; }catch(e){ return false; }
+  }
+  try{
+    await mklDb.ref(DB_ROOT + '/' + key).set(value);
+    return true;
+  }catch(e){ return false; }
 }
 async function storageListKeys(prefix, shared){
   try{
+    const snap = await mklDb.ref(DB_ROOT).once('value');
+    if(!snap.exists()) return [];
     const keys = [];
-    const p = 'mkl:'+(prefix||'');
-    for(let i=0;i<localStorage.length;i++){
-      const k = localStorage.key(i);
-      if(k && k.indexOf(p)===0) keys.push(k.slice(4));
-    }
+    snap.forEach(child=>{ const k = child.key; if(!prefix || k.indexOf(prefix)===0) keys.push(k); });
     return keys;
   }catch(e){ return []; }
 }
 async function storageDelete(key, shared){
-  try{ localStorage.removeItem('mkl:'+key); return true; }catch(e){ return false; }
+  if(shared === false){
+    try{ localStorage.removeItem('mkl:'+key); return true; }catch(e){ return false; }
+  }
+  try{
+    await mklDb.ref(DB_ROOT + '/' + key).remove();
+    return true;
+  }catch(e){ return false; }
 }
 
 /* ---------------- global state ---------------- */
