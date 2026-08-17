@@ -997,6 +997,7 @@ function renderVisitForm(container){
     <div class="office-tabs" style="margin-bottom:20px;">
       <button data-mode="new" class="${mode==='new'?'active':''}">New pickup</button>
       <button data-mode="deliver" class="${mode==='deliver'?'active':''}">Complete a delivery</button>
+      <button data-mode="recent" class="${mode==='recent'?'active':''}">Recent tickets</button>
     </div>
     <div id="visit-body"></div>
   `;
@@ -1005,7 +1006,85 @@ function renderVisitForm(container){
   });
   const body = document.getElementById('visit-body');
   if(mode==='new') renderNewPickup(body);
-  else renderDeliver(body);
+  else if(mode==='deliver') renderDeliver(body);
+  else renderRecentTickets(body);
+}
+
+/* Lets EVERY logged-in person — including Workers, who otherwise never see
+   Office — come back to a ticket after the fact and Send/Print it. Reuses
+   ticketCardHtml, which already hides Approve controls from non-Admins. */
+function renderRecentTickets(box){
+  if(!state.recentTicketsCust) state.recentTicketsCust = 'all';
+  box.innerHTML = `
+    <div class="ticket-header"><div><div class="eyebrow">Field entry</div><div class="title">Recent tickets</div></div></div>
+    <div class="mb16">
+      <label class="field-label">Customer</label>
+      <select id="rt-cust" class="field-input">
+        <option value="all" ${state.recentTicketsCust==='all'?'selected':''}>All customers</option>
+        ${state.customers.map(c=>`<option value="${c.id}" ${state.recentTicketsCust===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="rt-list"></div>
+  `;
+  box.querySelector('#rt-cust').addEventListener('change', e=>{ state.recentTicketsCust = e.target.value; drawRecentList(); });
+  drawRecentList();
+
+  function drawRecentList(){
+    const list = box.querySelector('#rt-list');
+    const rows = [];
+    state.customers.filter(c=> state.recentTicketsCust==='all' || c.id===state.recentTicketsCust).forEach(c=>{
+      ticketsFor(c.id).forEach(t=> rows.push({cust:c, t}));
+    });
+    rows.sort((a,b)=> (b.t.deliveredAt||b.t.createdAt||'').localeCompare(a.t.deliveredAt||a.t.createdAt||''));
+    const recent = rows.slice(0, 30);
+
+    if(!recent.length){ list.innerHTML = `<div class="empty-note">No tickets yet.</div>`; return; }
+    list.innerHTML = recent.map(({cust,t})=> ticketCardHtml(cust,t)).join('');
+
+    list.querySelectorAll('[data-approvebtn]').forEach(btn=> btn.addEventListener('click', async e=>{
+      const [custId, ticketId] = e.target.dataset.approvebtn.split('|');
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const approvals = t.approvals || [];
+      if(approvals.length>=2 || approvals.some(a=>a.byId===state.currentUser.id)) return;
+      const next = [...approvals, { by: currentUserName(), byId: state.currentUser.id, at: new Date().toISOString() }];
+      await updateTicket(custId, ticketId, { approvals: next, reviewed: next.length>=2 });
+      drawRecentList();
+    }));
+    list.querySelectorAll('[data-unapprove]').forEach(btn=> btn.addEventListener('click', async e=>{
+      const [custId, ticketId] = e.target.dataset.unapprove.split('|');
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const next = (t.approvals||[]).filter(a=> a.byId!==state.currentUser.id);
+      await updateTicket(custId, ticketId, { approvals: next, reviewed: next.length>=2 });
+      drawRecentList();
+    }));
+    list.querySelectorAll('[data-editticket]').forEach(btn=> btn.addEventListener('click', ()=>{
+      const [custId, ticketId] = btn.dataset.editticket.split('|');
+      renderTicketEditForm(box, custId, ticketId, ()=> renderRecentTickets(box));
+    }));
+    list.querySelectorAll('[data-printticket]').forEach(btn=> btn.addEventListener('click', ()=>{
+      const [custId, ticketId] = btn.dataset.printticket.split('|');
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const cust = state.customers.find(c=>c.id===custId);
+      buildPrintTicket({
+        ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
+        items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+      });
+      window.print();
+    }));
+    list.querySelectorAll('[data-sendticket]').forEach(btn=> btn.addEventListener('click', (e)=>{
+      const [custId, ticketId] = btn.dataset.sendticket.split('|');
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const cust = state.customers.find(c=>c.id===custId);
+      const ticketData = {
+        ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
+        items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+      };
+      sendPdfFromPrintArea(
+        e.currentTarget, buildPrintTicket, [ticketData],
+        `Ticket_${padTicket(t.ticketNo)}.pdf`, 'Mekong Laundry Ticket', `Ticket #${padTicket(t.ticketNo)} — ${cust.name}`
+      );
+    }));
+  }
 }
 
 /* ---------------- signature pad ---------------- */
@@ -1103,6 +1182,9 @@ function renderNewPickup(container){
   });
 
   container.querySelector('#np-send').addEventListener('click', (e)=>{
+    const liveTotal = Object.values(f.qtys).reduce((a,b)=>a+(b||0),0);
+    if(liveTotal===0){ showToast('Enter item counts before sending'); return; }
+    if(!f.collectedBy || !f.pickUpBy){ showToast('Both signatures are required before sending'); return; }
     sendPdfFromPrintArea(
       e.currentTarget, buildPrintTicket, [buildNpTicketData()],
       `Ticket_${padTicket(nextNo)}.pdf`, 'Mekong Laundry — Pickup Ticket', `Ticket #${padTicket(nextNo)} — ${customer?.name||''}`
@@ -1302,6 +1384,7 @@ function renderDeliver(container){
   });
 
   body.querySelector('#dl-send').addEventListener('click', (e)=>{
+    if(!f.deliveryBy || !f.receivedBy){ showToast('Both signatures are required before sending'); return; }
     sendPdfFromPrintArea(
       e.currentTarget, buildPrintTicket, [buildDlTicketData()],
       `Ticket_${padTicket(ticket.ticketNo)}.pdf`, 'Mekong Laundry — Delivery Ticket', `Ticket #${padTicket(ticket.ticketNo)} — ${ticket.custName}`
@@ -1859,6 +1942,13 @@ function renderTicketList(){
       renderTicketList();
     });
   });
+  list.querySelectorAll('[data-editticket]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const [custId, ticketId] = btn.dataset.editticket.split('|');
+      const officeBody = document.getElementById('office-body');
+      renderTicketEditForm(officeBody, custId, ticketId, ()=> renderTicketsTab(officeBody));
+    });
+  });
   list.querySelectorAll('[data-printticket]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const [custId, ticketId] = btn.dataset.printticket.split('|');
@@ -1886,6 +1976,81 @@ function renderTicketList(){
       );
     });
   });
+}
+
+/* Lets anyone with access correct wrong numbers on a ticket after the fact —
+   e.g. a worker who fat-fingered a quantity. Shared between Office → Tickets
+   and the Worker-facing "Recent tickets" view via returnFn, which re-renders
+   whichever list called it. Saving clears any existing approvals, since the
+   approved numbers no longer match once they're edited. */
+function renderTicketEditForm(container, custId, ticketId, returnFn){
+  const cust = state.customers.find(c=>c.id===custId);
+  const ticket = ticketsFor(custId).find(t=>t.id===ticketId);
+  if(!cust || !ticket){ returnFn(); return; }
+  const localItems = ticket.items.map(it=>({...it}));
+
+  function draw(){
+    container.innerHTML = `
+      <div class="ticket-header">
+        <div><div class="eyebrow">${esc(cust.name)} — ${fmtDate(ticket.date)}</div><div class="title">Edit Ticket #${padTicket(ticket.ticketNo)}</div></div>
+      </div>
+      <button id="et-back" class="link-btn" style="margin-bottom:12px;">← Back to list</button>
+      <div class="legend" style="margin-bottom:12px;">Fix a wrong number below. Saving clears any approvals already on this ticket — it'll need re-approving with the corrected numbers.</div>
+      <div class="grid-wrap"><div id="et-table"></div></div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button id="et-cancel" class="btn-outline">Cancel</button>
+        <button id="et-save" class="btn-primary">Save corrections</button>
+      </div>
+    `;
+    const tableBox = container.querySelector('#et-table');
+    const grouped = groupByCategory(localItems);
+    let rowNo = 0;
+    const rowsHtml = grouped.map(({cat, items})=>{
+      const catRow = `<tr class="cat-row"><td colspan="5">${esc(cat)}</td></tr>`;
+      const rows = items.map(it=>{
+        rowNo++;
+        return `<tr>
+          <td class="rowno">${rowNo}</td>
+          <td class="itemname">${esc(it.name)}</td>
+          <td><input type="number" inputmode="numeric" pattern="[0-9]*" class="mono numcell" data-pk="${it.itemId}" value="${it.pickupQty}" min="0" /></td>
+          <td><input type="number" inputmode="numeric" pattern="[0-9]*" class="mono numcell" data-dv="${it.itemId}" value="${it.deliveryQty||0}" min="0" /></td>
+          <td><input type="text" data-rk="${it.itemId}" value="${esc(it.remarks||'')}" placeholder="—" /></td>
+        </tr>`;
+      }).join('');
+      return catRow + rows;
+    }).join('');
+    tableBox.innerHTML = `<table class="grid"><thead><tr><th class="rowno">No</th><th class="itemname">Item</th><th>Pick&nbsp;Up</th><th>Delivery</th><th>Remarks</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    attachNumericBehavior(tableBox);
+
+    tableBox.querySelectorAll('[data-pk]').forEach(inp=> inp.addEventListener('input', ()=>{
+      const it = localItems.find(x=>x.itemId===inp.dataset.pk);
+      it.pickupQty = Math.max(0, parseInt(inp.value||'0',10));
+    }));
+    tableBox.querySelectorAll('[data-dv]').forEach(inp=> inp.addEventListener('input', ()=>{
+      const it = localItems.find(x=>x.itemId===inp.dataset.dv);
+      it.deliveryQty = Math.max(0, parseInt(inp.value||'0',10));
+    }));
+    tableBox.querySelectorAll('[data-rk]').forEach(inp=> inp.addEventListener('input', ()=>{
+      const it = localItems.find(x=>x.itemId===inp.dataset.rk);
+      it.remarks = inp.value;
+    }));
+
+    container.querySelector('#et-back').addEventListener('click', returnFn);
+    container.querySelector('#et-cancel').addEventListener('click', returnFn);
+    container.querySelector('#et-save').addEventListener('click', async ()=>{
+      const hadApprovals = (ticket.approvals||[]).length > 0;
+      const saveBtn = container.querySelector('#et-save');
+      saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+      await updateTicket(custId, ticketId, {
+        items: localItems,
+        approvals: [], reviewed: false,
+        editHistory: [...(ticket.editHistory||[]), { by: currentUserName(), at: new Date().toISOString() }],
+      });
+      showToast(hadApprovals ? 'Corrected — approvals cleared, needs re-approval' : 'Corrected');
+      returnFn();
+    });
+  }
+  draw();
 }
 
 function ticketCardHtml(cust, t){
@@ -1922,6 +2087,7 @@ function ticketCardHtml(cust, t){
       ${shortItems.length? `<div class="flag-short">△ Short: ${shortItems.map(i=>`${esc(i.name)} −${i.pickupQty-(i.deliveryQty||0)}`).join(', ')}</div>`:''}
       ${overItems.length? `<div class="flag-over">⚠ Over: ${overItems.map(i=>`${esc(i.name)} +${(i.deliveryQty||0)-i.pickupQty}`).join(', ')}</div>`:''}
       ${remarkItems.length? `<div style="font-size:12px;color:var(--stone-600);margin-top:4px;">📝 ${remarkItems.map(i=>`<b>${esc(i.name)}:</b> ${esc(i.remarks)}`).join(' · ')}</div>`:''}
+      ${(t.editHistory||[]).length ? `<div style="font-size:11px;color:var(--amber-700);margin-top:4px;">✎ Corrected by ${esc(t.editHistory[t.editHistory.length-1].by)} on ${fmtDate(t.editHistory[t.editHistory.length-1].at.slice(0,10))}</div>` : ''}
       <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;">
         ${t.collectedBy ? `<img class="sig-thumb" src="${t.collectedBy}" title="Collected by" />` : ''}
         ${t.pickUpBy ? `<img class="sig-thumb" src="${t.pickUpBy}" title="Pick up by" />` : ''}
@@ -1936,6 +2102,7 @@ function ticketCardHtml(cust, t){
           ${alreadyApprovedByMe ? `<button data-unapprove="${cust.id}|${t.id}" class="link-btn" style="margin-top:4px;color:var(--rose-600);">Remove my approval</button>` : ''}
         </div>
         <div style="display:flex;gap:12px;">
+          <button class="link-btn" data-editticket="${cust.id}|${t.id}">Edit</button>
           <button class="link-btn" data-sendticket="${cust.id}|${t.id}">Send</button>
           <button class="link-btn" data-printticket="${cust.id}|${t.id}">Print</button>
         </div>
