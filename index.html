@@ -1181,22 +1181,10 @@ function renderNewPickup(container){
     window.print();
   });
 
-  container.querySelector('#np-send').addEventListener('click', (e)=>{
+  async function saveNewPickupTicket(){
     const liveTotal = Object.values(f.qtys).reduce((a,b)=>a+(b||0),0);
-    if(liveTotal===0){ showToast('Enter item counts before sending'); return; }
-    if(!f.collectedBy || !f.pickUpBy){ showToast('Both signatures are required before sending'); return; }
-    sendPdfFromPrintArea(
-      e.currentTarget, buildPrintTicket, [buildNpTicketData()],
-      `Ticket_${padTicket(nextNo)}.pdf`, 'Mekong Laundry — Pickup Ticket', `Ticket #${padTicket(nextNo)} — ${customer?.name||''}`
-    );
-  });
-
-  container.querySelector('#np-submit').addEventListener('click', async ()=>{
-    const liveTotal = Object.values(f.qtys).reduce((a,b)=>a+(b||0),0);
-    if(liveTotal===0){ showToast('Enter at least one item count'); return; }
-    if(!f.collectedBy || !f.pickUpBy){ showToast('Both signatures are required'); return; }
-    const btn = container.querySelector('#np-submit');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    if(liveTotal===0){ showToast('Enter at least one item count'); return null; }
+    if(!f.collectedBy || !f.pickUpBy){ showToast('Both signatures are required'); return null; }
     const ticketNo = state.ticketCounter + 1;
     const ticket = {
       id: uid(), ticketNo, date: f.date, worker: f.worker.trim()||'Unnamed',
@@ -1208,7 +1196,38 @@ function renderNewPickup(container){
     };
     await addTicket(f.custId, ticket);
     await saveTicketCounter(ticketNo);
-    showToast(`Ticket ${padTicket(ticketNo)} saved — ${liveTotal} items picked up`);
+    return ticket;
+  }
+
+  container.querySelector('#np-send').addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const savedTicket = await saveNewPickupTicket();
+    btn.disabled = false; btn.textContent = 'Send ticket';
+    if(!savedTicket) return; // validation message already shown
+    showToast(`Ticket ${padTicket(savedTicket.ticketNo)} saved`);
+    const custIdAtSave = f.custId;
+    const savedTicketData = {
+      ticketNo: savedTicket.ticketNo, date: savedTicket.date, customerName: customer?.name || '', stage:'pickup',
+      items: savedTicket.items, collectedBy: savedTicket.collectedBy, pickUpBy: savedTicket.pickUpBy, deliveryBy:null, receivedBy:null, deliveredDate:null,
+    };
+    state.pickupForm = freshPickupForm();
+    state.pickupForm.custId = custIdAtSave;
+    renderNewPickup(container);
+    // find the (now fresh) Send button again after the re-render and reuse it as the share trigger
+    const freshBtn = container.querySelector('#np-send');
+    sendPdfFromPrintArea(
+      freshBtn, buildPrintTicket, [savedTicketData],
+      `Ticket_${padTicket(savedTicket.ticketNo)}.pdf`, 'Mekong Laundry — Pickup Ticket', `Ticket #${padTicket(savedTicket.ticketNo)} — ${customer?.name||''}`
+    );
+  });
+
+  container.querySelector('#np-submit').addEventListener('click', async ()=>{
+    const btn = container.querySelector('#np-submit');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const savedTicket = await saveNewPickupTicket();
+    if(!savedTicket){ btn.disabled = false; btn.textContent = 'Save pickup'; return; }
+    showToast(`Ticket ${padTicket(savedTicket.ticketNo)} saved — ${savedTicket.items.reduce((a,i)=>a+i.pickupQty,0)} items picked up`);
     state.pickupForm = freshPickupForm();
     state.pickupForm.custId = f.custId;
     renderNewPickup(container);
@@ -1383,11 +1402,36 @@ function renderDeliver(container){
     window.print();
   });
 
-  body.querySelector('#dl-send').addEventListener('click', (e)=>{
-    if(!f.deliveryBy || !f.receivedBy){ showToast('Both signatures are required before sending'); return; }
+  async function confirmDeliveryTicket(){
+    if(!f.deliveryBy || !f.receivedBy){ showToast('Both signatures are required to confirm delivery'); return null; }
+    const items = mergeDeliverItems(ticket, f);
+    const patch = {
+      items, status:'closed', deliveryBy: f.deliveryBy, receivedBy: f.receivedBy,
+      deliveredDate: f.date, deliveryWorker: f.worker.trim()||'Unnamed',
+      deliveredAt: new Date().toISOString(),
+    };
+    await updateTicket(custId, ticket.id, patch);
+    return { ...ticket, ...patch };
+  }
+
+  body.querySelector('#dl-send').addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const savedTicket = await confirmDeliveryTicket();
+    btn.disabled = false; btn.textContent = 'Send ticket';
+    if(!savedTicket) return; // validation message already shown
+    showToast(`Ticket ${padTicket(savedTicket.ticketNo)} delivered — confirmed`);
+    const savedTicketData = {
+      ticketNo: savedTicket.ticketNo, date: savedTicket.date, customerName: ticket.custName, stage:'delivered',
+      items: savedTicket.items, collectedBy: savedTicket.collectedBy, pickUpBy: savedTicket.pickUpBy,
+      deliveryBy: savedTicket.deliveryBy, receivedBy: savedTicket.receivedBy, deliveredDate: savedTicket.deliveredDate,
+    };
+    state.deliverForm = freshDeliverForm();
+    renderDeliver(container);
+    const freshBtn = document.getElementById('dl-send');
     sendPdfFromPrintArea(
-      e.currentTarget, buildPrintTicket, [buildDlTicketData()],
-      `Ticket_${padTicket(ticket.ticketNo)}.pdf`, 'Mekong Laundry — Delivery Ticket', `Ticket #${padTicket(ticket.ticketNo)} — ${ticket.custName}`
+      freshBtn, buildPrintTicket, [savedTicketData],
+      `Ticket_${padTicket(savedTicket.ticketNo)}.pdf`, 'Mekong Laundry — Delivery Ticket', `Ticket #${padTicket(savedTicket.ticketNo)} — ${ticket.custName}`
     );
   });
 
@@ -1406,17 +1450,12 @@ function renderDeliver(container){
   });
 
   body.querySelector('#dl-submit').addEventListener('click', async ()=>{
-    if(!f.deliveryBy || !f.receivedBy){ showToast('Both signatures are required to confirm delivery'); return; }
     const btn = body.querySelector('#dl-submit');
     btn.disabled = true; btn.textContent = 'Saving…';
-    const items = mergeDeliverItems(ticket, f);
-    await updateTicket(custId, ticket.id, {
-      items, status:'closed', deliveryBy: f.deliveryBy, receivedBy: f.receivedBy,
-      deliveredDate: f.date, deliveryWorker: f.worker.trim()||'Unnamed',
-      deliveredAt: new Date().toISOString(),
-    });
-    const dTotal = items.reduce((a,i)=>a+i.deliveryQty,0);
-    showToast(`Ticket ${padTicket(ticket.ticketNo)} delivered — ${dTotal} items`);
+    const savedTicket = await confirmDeliveryTicket();
+    if(!savedTicket){ btn.disabled = false; btn.textContent = 'Confirm delivery (sign)'; return; }
+    const dTotal = savedTicket.items.reduce((a,i)=>a+i.deliveryQty,0);
+    showToast(`Ticket ${padTicket(savedTicket.ticketNo)} delivered — ${dTotal} items`);
     state.deliverForm = freshDeliverForm();
     renderDeliver(container);
   });
