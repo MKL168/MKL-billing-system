@@ -142,6 +142,8 @@
 <div id="print-area"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <!-- ============================================================
      FIREBASE SETUP — replace the placeholder values below with
@@ -1077,8 +1079,9 @@ function renderNewPickup(container){
 
     <div class="btn-row">
       <button id="np-print" type="button" class="btn-outline">Print ticket</button>
-      <button id="np-submit" class="btn-primary">Save pickup</button>
+      <button id="np-send" type="button" class="btn-outline">Send ticket</button>
     </div>
+    <button id="np-submit" class="btn-primary" style="width:100%;margin-top:10px;">Save pickup</button>
   `;
 
   renderPickupTable(customer);
@@ -1089,12 +1092,21 @@ function renderNewPickup(container){
   setupSignaturePad(container.querySelector('#np-sig1'), container.querySelector('#np-sig1-clear'), (d)=> f.collectedBy = d);
   setupSignaturePad(container.querySelector('#np-sig2'), container.querySelector('#np-sig2-clear'), (d)=> f.pickUpBy = d);
 
+  const buildNpTicketData = () => ({
+    ticketNo: nextNo, date: f.date, customerName: customer?.name || '', stage:'pickup',
+    items: buildTicketItemsFromForm(customer, f), collectedBy: f.collectedBy, pickUpBy: f.pickUpBy, deliveryBy:null, receivedBy:null, deliveredDate:null,
+  });
+
   container.querySelector('#np-print').addEventListener('click', ()=>{
-    buildPrintTicket({
-      ticketNo: nextNo, date: f.date, customerName: customer?.name || '', stage:'pickup',
-      items: buildTicketItemsFromForm(customer, f), collectedBy: f.collectedBy, pickUpBy: f.pickUpBy, deliveryBy:null, receivedBy:null, deliveredDate:null,
-    });
+    buildPrintTicket(buildNpTicketData());
     window.print();
+  });
+
+  container.querySelector('#np-send').addEventListener('click', (e)=>{
+    sendPdfFromPrintArea(
+      e.currentTarget, buildPrintTicket, [buildNpTicketData()],
+      `Ticket_${padTicket(nextNo)}.pdf`, 'Mekong Laundry — Pickup Ticket', `Ticket #${padTicket(nextNo)} — ${customer?.name||''}`
+    );
   });
 
   container.querySelector('#np-submit').addEventListener('click', async ()=>{
@@ -1246,8 +1258,9 @@ function renderDeliver(container){
 
     <div class="btn-row mb16">
       <button id="dl-print" type="button" class="btn-outline">Print ticket</button>
-      <button id="dl-saveamounts" type="button" class="btn-outline">Save amounts only</button>
+      <button id="dl-send" type="button" class="btn-outline">Send ticket</button>
     </div>
+    <button id="dl-saveamounts" type="button" class="btn-outline" style="width:100%;margin-bottom:16px;">Save amounts only</button>
 
     <div class="section-label"><span>At the door — delivery confirmed &amp; signed</span></div>
     <div class="mb16">
@@ -1277,13 +1290,22 @@ function renderDeliver(container){
   setupSignaturePad(body.querySelector('#dl-sig1'), body.querySelector('#dl-sig1-clear'), (d)=> f.deliveryBy = d);
   setupSignaturePad(body.querySelector('#dl-sig2'), body.querySelector('#dl-sig2-clear'), (d)=> f.receivedBy = d);
 
+  const buildDlTicketData = () => ({
+    ticketNo: ticket.ticketNo, date: ticket.date, customerName: ticket.custName, stage:'delivered',
+    items: mergeDeliverItems(ticket, f),
+    collectedBy: ticket.collectedBy, pickUpBy: ticket.pickUpBy, deliveryBy: f.deliveryBy, receivedBy: f.receivedBy, deliveredDate: f.date,
+  });
+
   body.querySelector('#dl-print').addEventListener('click', ()=>{
-    buildPrintTicket({
-      ticketNo: ticket.ticketNo, date: ticket.date, customerName: ticket.custName, stage:'delivered',
-      items: mergeDeliverItems(ticket, f),
-      collectedBy: ticket.collectedBy, pickUpBy: ticket.pickUpBy, deliveryBy: f.deliveryBy, receivedBy: f.receivedBy, deliveredDate: f.date,
-    });
+    buildPrintTicket(buildDlTicketData());
     window.print();
+  });
+
+  body.querySelector('#dl-send').addEventListener('click', (e)=>{
+    sendPdfFromPrintArea(
+      e.currentTarget, buildPrintTicket, [buildDlTicketData()],
+      `Ticket_${padTicket(ticket.ticketNo)}.pdf`, 'Mekong Laundry — Delivery Ticket', `Ticket #${padTicket(ticket.ticketNo)} — ${ticket.custName}`
+    );
   });
 
   body.querySelector('#dl-saveamounts').addEventListener('click', async ()=>{
@@ -1436,7 +1458,74 @@ function buildPrintTicket(t){
   `;
 }
 
-/* ================= OFFICE VIEW ================= */
+/* ---------------- PDF generation + native share ---------------- */
+/* Renders whatever is currently in #print-area (built by buildPrintTicket
+   or buildPrintInvoice/buildPrintSupportSheet) into a PDF, then hands it to
+   the phone's native share sheet — Telegram, Messenger, WhatsApp, email,
+   whatever's installed — so the worker just picks where it goes. Falls
+   back to a plain download if the browser can't share files (most desktop
+   browsers), so the PDF can still be attached manually. */
+async function renderPrintAreaToCanvas(){
+  const area = document.getElementById('print-area');
+  const prevStyle = area.getAttribute('style') || '';
+  area.style.cssText = 'display:block;position:fixed;left:-9999px;top:0;width:780px;background:#fff;padding:20px;z-index:-1;';
+  await new Promise(r=> setTimeout(r, 60)); // let layout settle before capture
+  const canvas = await html2canvas(area, { scale: 2, backgroundColor: '#ffffff' });
+  area.setAttribute('style', prevStyle);
+  return canvas;
+}
+
+async function canvasToPdfBlob(canvas){
+  const { jsPDF } = window.jspdf;
+  const imgData = canvas.toDataURL('image/png');
+  const scale = 2; // matches the scale used in renderPrintAreaToCanvas
+  const pxToMm = 0.264583;
+  const widthMm = (canvas.width / scale) * pxToMm;
+  const heightMm = (canvas.height / scale) * pxToMm;
+  const pdf = new jsPDF({ orientation: widthMm > heightMm ? 'landscape' : 'portrait', unit: 'mm', format: [widthMm, heightMm] });
+  pdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm);
+  return pdf.output('blob');
+}
+
+async function shareOrDownloadBlob(blob, filename, shareTitle, shareText){
+  try{
+    const file = new File([blob], filename, { type: 'application/pdf' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: shareTitle, text: shareText });
+      return 'shared';
+    }
+  }catch(e){
+    if(e && e.name === 'AbortError') return 'cancelled'; // person closed the share sheet themselves
+    // otherwise fall through to download below
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  return 'downloaded';
+}
+
+/* buildFn is whichever of buildPrintTicket / buildPrintInvoice / buildPrintSupportSheet
+   populates #print-area — called with buildArgs right before capturing. */
+async function sendPdfFromPrintArea(btn, buildFn, buildArgs, filename, shareTitle, shareText){
+  if(!btn) { buildFn(...buildArgs); return; }
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparing…';
+  try{
+    buildFn(...buildArgs);
+    const canvas = await renderPrintAreaToCanvas();
+    const blob = await canvasToPdfBlob(canvas);
+    const result = await shareOrDownloadBlob(blob, filename, shareTitle, shareText);
+    if(result==='downloaded') showToast('PDF downloaded — attach it in Messenger/Telegram');
+    else if(result==='shared') showToast('Ticket sent');
+  }catch(e){
+    showToast('Could not create the PDF');
+  }
+  btn.disabled = false; btn.textContent = original;
+}
+
+
 function renderOffice(container){
   const o = state.office;
   // switching Office tabs (including into Users/Customers) starts a fresh, un-dirty draft
@@ -1782,6 +1871,21 @@ function renderTicketList(){
       window.print();
     });
   });
+  list.querySelectorAll('[data-sendticket]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const [custId, ticketId] = btn.dataset.sendticket.split('|');
+      const t = ticketsFor(custId).find(x=>x.id===ticketId);
+      const cust = state.customers.find(c=>c.id===custId);
+      const ticketData = {
+        ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
+        items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+      };
+      sendPdfFromPrintArea(
+        e.currentTarget, buildPrintTicket, [ticketData],
+        `Ticket_${padTicket(t.ticketNo)}.pdf`, 'Mekong Laundry Ticket', `Ticket #${padTicket(t.ticketNo)} — ${cust.name}`
+      );
+    });
+  });
 }
 
 function ticketCardHtml(cust, t){
@@ -1831,7 +1935,10 @@ function ticketCardHtml(cust, t){
           ${canApprove ? `<button data-approvebtn="${cust.id}|${t.id}" class="link-btn" style="margin-top:4px;">Approve</button>` : ''}
           ${alreadyApprovedByMe ? `<button data-unapprove="${cust.id}|${t.id}" class="link-btn" style="margin-top:4px;color:var(--rose-600);">Remove my approval</button>` : ''}
         </div>
-        <button class="link-btn" data-printticket="${cust.id}|${t.id}">Print</button>
+        <div style="display:flex;gap:12px;">
+          <button class="link-btn" data-sendticket="${cust.id}|${t.id}">Send</button>
+          <button class="link-btn" data-printticket="${cust.id}|${t.id}">Print</button>
+        </div>
       </div>
     </div>`;
 }
