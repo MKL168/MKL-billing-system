@@ -546,7 +546,7 @@ function startPolling(){
 async function refreshSharedData(){
   if(!state.ready || !state.currentUser) return;
   try{
-    const [users, customers, pendingChanges, securityKey, paymentDetails, invoiceNumbers, invoiceCounter, ticketCounter, lastManualBackupAt] = await Promise.all([
+    const [users, customers, pendingChanges, securityKey, paymentDetails, invoiceNumbers, invoiceCounter, ticketCounter, lastManualBackupAt, deviceRequests] = await Promise.all([
       storageGet('users', true),
       storageGet('customers', true),
       storageGet('pendingChanges', true),
@@ -556,12 +556,13 @@ async function refreshSharedData(){
       storageGet('invoiceCounter', true),
       storageGet('ticketCounter', true),
       storageGet('lastManualBackupAt', true),
+      storageGet('deviceRequests', true),
     ]);
     const custList = customers || state.customers;
     const ticketsByCust = {};
     for(const c of custList){ ticketsByCust[c.id] = (await storageGet('tickets:'+c.id, true)) || []; }
 
-    const snapshot = JSON.stringify({ users, customers, pendingChanges, securityKey, paymentDetails, invoiceNumbers, invoiceCounter, ticketCounter, lastManualBackupAt, ticketsByCust });
+    const snapshot = JSON.stringify({ users, customers, pendingChanges, securityKey, paymentDetails, invoiceNumbers, invoiceCounter, ticketCounter, lastManualBackupAt, deviceRequests, ticketsByCust });
     if(snapshot === state._lastPollSnapshot) return; // nothing changed anywhere — skip re-render entirely
     state._lastPollSnapshot = snapshot;
 
@@ -574,6 +575,7 @@ async function refreshSharedData(){
     if(invoiceCounter!=null) state.invoiceCounter = invoiceCounter;
     if(ticketCounter!=null) state.ticketCounter = ticketCounter;
     if(lastManualBackupAt!=null) state.lastManualBackupAt = lastManualBackupAt;
+    if(deviceRequests) state.deviceRequests = deviceRequests;
     state.tickets = ticketsByCust;
 
     if(state.currentUser){
