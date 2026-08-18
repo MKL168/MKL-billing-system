@@ -159,6 +159,7 @@
      collides with MS2's data in the same database.
      ============================================================ -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
   const firebaseConfig = {
@@ -175,6 +176,54 @@
   const mklDb = firebase.database();
   // Separate namespace from MKL MS2's data inside the same Realtime Database.
   const DB_ROOT = 'mkl_billing_kv';
+
+  // Sign in anonymously before any database calls — the Realtime Database
+  // rules require auth != null. window.mklAuthReady resolves once signed in,
+  // or after 2.5s regardless (so the app never hangs offline; storage calls
+  // will simply fail gracefully in that case, same as before this was added).
+  window.mklAuthReady = new Promise(function(resolve){
+    let done = false;
+    function finish(){ if(done) return; done = true; resolve(); }
+    setTimeout(finish, 2500);
+    firebase.auth().signInAnonymously().then(finish).catch(function(e){
+      console.warn('[MKL Billing] Anonymous sign-in failed, running without cloud sync:', e);
+      finish();
+    });
+  });
+</script>
+
+<!-- ============================================================
+     DEVICE-APPROVAL NOTIFICATIONS (Telegram)
+     Fill in your bot token + chat ID below (see setup steps from
+     Claude — create a bot via @BotFather, message it once, then
+     fetch https://api.telegram.org/bot<TOKEN>/getUpdates to find
+     your chat id). Until both are filled in, device requests still
+     work and show up in the Owner's Approvals tab — you just won't
+     get a phone notification until this is configured.
+     ============================================================ -->
+<script>
+  const TELEGRAM_BOT_TOKEN = '8559538564:AAElo8HijofGtNpahW0jKmsorxsHX0wCDuA';
+  const TELEGRAM_CHAT_ID = '557250522';
+  async function notifyTelegram(text){
+    if(!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN.indexOf('PASTE')===0) return;
+    if(!TELEGRAM_CHAT_ID || TELEGRAM_CHAT_ID.indexOf('PASTE')===0) return;
+    try{
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
+      });
+    }catch(e){ console.warn('[MKL Billing] Telegram notify failed:', e); }
+  }
+  // Stable per-browser identifier — persists across logins/logouts on this
+  // device, but is unique to this specific browser install (personal/local only).
+  function getDeviceId(){
+    let id = localStorage.getItem('mkl_billing_device_id');
+    if(!id){
+      id = 'dev_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+      localStorage.setItem('mkl_billing_device_id', id);
+    }
+    return id;
+  }
 </script>
 
 <script>
@@ -290,6 +339,7 @@ const state = {
   customers: DEFAULT_CUSTOMERS,
   tickets: {},        // custId -> [ticket,...]
   ticketCounter: 0,
+  deviceRequests: [], // pending/approved/rejected new-device login requests (admin/worker only)
   view: 'visit',       // visit | office
   visitMode: 'new',    // new | deliver (within the one Pickup & Delivery form)
   pickupForm: null,
@@ -438,6 +488,7 @@ async function init(){
   if(!users || !users.length){ users = DEFAULT_USERS; await storageSet('users', users, true); }
   state.users = users;
   state.pendingChanges = (await storageGet('pendingChanges', true)) || [];
+  state.deviceRequests = (await storageGet('deviceRequests', true)) || [];
 
   let secKey = await storageGet('securityKey', true);
   if(!secKey){
@@ -527,8 +578,19 @@ async function refreshSharedData(){
 
     if(state.currentUser){
       const me = state.users.find(u=>u.id===state.currentUser.id);
-      if(me) state.currentUser = me;
-      else { await logoutUser(); return; } // this account was removed elsewhere — log out
+      if(!me){ await logoutUser(); return; } // this account was removed elsewhere — log out
+      if(me.active===false){
+        notifyTelegram(`🔒 MKL Billing — ${me.name} was signed out (account removed).`);
+        await logoutUser(); showToast('Your access was removed by the Owner'); return;
+      }
+      if(me.role!=='owner'){
+        const stillApproved = (me.approvedDevices||[]).some(d=> (typeof d==='string' ? d : d.deviceId) === getDeviceId());
+        if(!stillApproved){
+          notifyTelegram(`🔒 MKL Billing — ${me.name}'s device was signed out (device removed: ${deviceLabel()}).`);
+          await logoutUser(); showToast('This device was removed by the Owner'); return;
+        }
+      }
+      state.currentUser = me;
     }
 
     const active = document.activeElement;
@@ -866,17 +928,72 @@ function deviceLabel(){
   return `${browser} on ${os}`;
 }
 
-async function loginAs(userId, pin){
-  const u = state.users.find(x=>x.id===userId && x.active!==false);
-  if(!u) return false;
-  if((u.pin||'') !== (pin||'')) return false;
+async function completeLogin(u){
   const updated = state.users.map(x=> x.id===u.id ? { ...x, lastDevice: deviceLabel(), lastLoginAt: new Date().toISOString() } : x);
   state.users = updated;
   await storageSet('users', updated, true);
   state.currentUser = updated.find(x=>x.id===u.id);
   await storageSet('currentUserId', u.id, false); // personal — this device only
   render();
-  return true;
+}
+// Returns { ok, pending, requestId } instead of a plain boolean, since a
+// login can now land in a third state: "waiting on Owner approval".
+async function loginAs(userId, pin){
+  const u = state.users.find(x=>x.id===userId && x.active!==false);
+  if(!u) return { ok:false };
+  if((u.pin||'') !== (pin||'')) return { ok:false };
+
+  // Owner is exempt from device-approval (there'd be nobody left to approve
+  // the Owner's own first device otherwise).
+  if(u.role === 'owner'){
+    await completeLogin(u);
+    return { ok:true };
+  }
+
+  const deviceId = getDeviceId();
+  if((u.approvedDevices||[]).some(d=> (typeof d==='string' ? d : d.deviceId) === deviceId)){
+    await completeLogin(u);
+    return { ok:true };
+  }
+
+  // New, unrecognized device for this account — block, notify, wait.
+  const reqId = uid();
+  const request = {
+    id: reqId, userId: u.id, userName: u.name, role: u.role,
+    deviceId, deviceLabel: deviceLabel(),
+    requestedAt: new Date().toISOString(), status: 'pending',
+  };
+  const reqs = [...(state.deviceRequests||[]), request];
+  state.deviceRequests = reqs;
+  await storageSet('deviceRequests', reqs, true);
+  notifyTelegram(
+    `🔔 MKL Billing — new device wants to log in\n` +
+    `User: ${u.name} (${u.role})\n` +
+    `Device: ${request.deviceLabel}\n` +
+    `Time: ${new Date().toLocaleString('en-GB')}\n\n` +
+    `Open the app as Owner → Approvals to approve or reject.`
+  );
+  return { ok:false, pending:true, requestId:reqId };
+}
+async function pollDeviceRequest(reqId){
+  return new Promise(resolve=>{
+    let attempts = 0;
+    const iv = setInterval(async ()=>{
+      attempts++;
+      const reqs = (await storageGet('deviceRequests', true)) || [];
+      const r = reqs.find(x=>x.id===reqId);
+      if(r && r.status==='approved'){ clearInterval(iv); resolve('approved'); }
+      else if(r && r.status==='rejected'){ clearInterval(iv); resolve('rejected'); }
+      else if(attempts > 200){ clearInterval(iv); resolve('timeout'); } // ~10 minutes at 3s
+    }, 3000);
+  });
+}
+async function completeLoginAfterApproval(userId){
+  const users = (await storageGet('users', true)) || [];
+  state.users = users;
+  const u = users.find(x=>x.id===userId);
+  if(!u) return;
+  await completeLogin(u);
 }
 async function logoutUser(){
   state.currentUser = null;
@@ -932,18 +1049,62 @@ function renderLogin(app){
   } else {
     const pinInput = app.querySelector('#login-pin');
     const tryLogin = async () => {
-      const ok = await loginAs(pinUser.id, pinInput.value);
-      if(!ok){
-        app.querySelector('#login-error').textContent = 'Incorrect PIN';
-        pinInput.value = '';
-        pinInput.focus();
+      const submitBtn = app.querySelector('#login-submit');
+      submitBtn.disabled = true;
+      const result = await loginAs(pinUser.id, pinInput.value);
+      if(result.ok) return; // completeLogin already re-rendered the app
+      if(result.pending){
+        renderWaitingForApproval(app, result.requestId, pinUser);
+        return;
       }
+      app.querySelector('#login-error').textContent = 'Incorrect PIN';
+      pinInput.value = '';
+      pinInput.focus();
+      submitBtn.disabled = false;
     };
     pinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
     app.querySelector('#login-submit').addEventListener('click', tryLogin);
     app.querySelector('#login-back').addEventListener('click', ()=>{ state.loginPinFor = null; renderLogin(app); });
     pinInput.focus();
   }
+}
+
+function renderWaitingForApproval(app, reqId, u){
+  app.innerHTML = `
+    <div class="login-wrap">
+      <div class="cust-card" style="text-align:center;">
+        <div style="font-weight:800;font-size:16px;margin-bottom:8px;">Waiting for approval…</div>
+        <div class="empty-note" style="margin-bottom:14px;">
+          This is a new device for <b>${esc(u.name)}</b>. The Owner has been notified and needs to
+          approve it before you can continue. Keep this page open.
+        </div>
+        <div style="font-size:12px;color:var(--stone-500);">This can take a moment — checking every few seconds…</div>
+      </div>
+    </div>`;
+  pollDeviceRequest(reqId).then(async (status)=>{
+    if(status==='approved'){
+      await completeLoginAfterApproval(u.id);
+    } else if(status==='rejected'){
+      app.innerHTML = `
+        <div class="login-wrap">
+          <div class="cust-card" style="text-align:center;">
+            <div style="font-weight:800;color:var(--rose-600);margin-bottom:8px;">Access denied by Owner.</div>
+            <button id="waiting-back" class="btn-outline">Back to login</button>
+          </div>
+        </div>`;
+      app.querySelector('#waiting-back').addEventListener('click', ()=>{ state.loginPinFor = null; renderLogin(app); });
+    } else {
+      app.innerHTML = `
+        <div class="login-wrap">
+          <div class="cust-card" style="text-align:center;">
+            <div style="font-weight:800;margin-bottom:8px;">Request timed out.</div>
+            <div class="empty-note" style="margin-bottom:14px;">Please try logging in again.</div>
+            <button id="waiting-back" class="btn-outline">Back to login</button>
+          </div>
+        </div>`;
+      app.querySelector('#waiting-back').addEventListener('click', ()=>{ state.loginPinFor = null; renderLogin(app); });
+    }
+  });
 }
 
 function renderSecurityLock(app){
@@ -1654,6 +1815,7 @@ function renderOffice(container){
   state.hasUnsavedDraft = false;
   const role = state.currentUser ? state.currentUser.role : 'worker';
   const pendingCount = state.pendingChanges.filter(p=> p.status!=='approved' && p.status!=='rejected').length;
+  const pendingDeviceCount = (state.deviceRequests||[]).filter(r=> r.status==='pending').length;
   const myTickets = myPendingTicketApprovals();
   const myChanges = myPendingChangeApprovals();
   const backupAlert = backupDueToday();
@@ -1672,12 +1834,13 @@ function renderOffice(container){
         </div>
       </div>
     </div>` : ''}
-    ${(myTickets+myChanges) ? `
+    ${(myTickets+myChanges+(role==='owner'?pendingDeviceCount:0)) ? `
     <div class="cust-card" style="background:var(--amber-50);border:1px solid var(--amber-100);">
       <div style="font-weight:800;font-size:13px;margin-bottom:6px;color:var(--amber-800);">Needs your approval</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">
         ${myTickets ? `<button data-jump="tickets" class="link-btn" style="font-size:13px;">${myTickets} pickup/delivery ticket${myTickets>1?'s':''} →</button>` : ''}
         ${myChanges ? `<button data-jump="approvals" class="link-btn" style="font-size:13px;">${myChanges} Customers &amp; Items change${myChanges>1?'s':''} →</button>` : ''}
+        ${(role==='owner'&&pendingDeviceCount) ? `<button data-jump="approvals" class="link-btn" style="font-size:13px;color:var(--rose-600);">🔔 ${pendingDeviceCount} new device login${pendingDeviceCount>1?'s':''} waiting →</button>` : ''}
       </div>
     </div>` : ''}
     <div class="office-subtabs">
@@ -1686,7 +1849,7 @@ function renderOffice(container){
       <button data-tab="billing" class="${o.tab==='billing'?'active':''}">Invoices</button>
       <button data-tab="sales" class="${o.tab==='sales'?'active':''}">Sales</button>
       <button data-tab="admin" class="${o.tab==='admin'?'active':''}">Customers</button>
-      <button data-tab="approvals" class="${o.tab==='approvals'?'active':''}">Approvals${pendingCount?' ('+pendingCount+')':''}</button>
+      <button data-tab="approvals" class="${o.tab==='approvals'?'active':''}">Approvals${(pendingCount+pendingDeviceCount)?' ('+(pendingCount+pendingDeviceCount)+')':''}</button>
       <button data-tab="users" class="${o.tab==='users'?'active':''}">Users</button>
     </div>
     <div id="office-body"></div>
@@ -1721,6 +1884,9 @@ function renderOffice(container){
 function renderApprovalsTab(box, role){
   function draw(){
     const mine = currentUserName();
+    const pendingDevices = (state.deviceRequests||[]).filter(r=>r.status==='pending');
+    const deviceHistory = (state.deviceRequests||[]).filter(r=>r.status==='approved'||r.status==='rejected')
+      .sort((a,b)=> (b.decidedAt||'').localeCompare(a.decidedAt||'')).slice(0,10);
     const pendingAdmin = state.pendingChanges.filter(p=> p.status==='pending_admin_approval');
     const pendingOwner = state.pendingChanges.filter(p=> p.status==='pending_owner_approval');
     const history = state.pendingChanges.filter(p=> p.status==='approved' || p.status==='rejected')
@@ -1745,6 +1911,28 @@ function renderApprovalsTab(box, role){
     };
 
     box.innerHTML = `
+      ${role==='owner' ? `
+      <div class="section-label"><span>New device login requests</span></div>
+      ${pendingDevices.length ? pendingDevices.map(r=>`
+        <div class="card" style="border-color:var(--rose-100);">
+          <div style="font-weight:800;">${esc(r.userName)} <span class="pill" style="margin-bottom:0;">${esc(r.role)}</span></div>
+          <div style="font-size:12px;color:var(--stone-500);margin:4px 0 10px;">
+            Device: ${esc(r.deviceLabel)}<br>Requested ${new Date(r.requestedAt).toLocaleString('en-GB')}
+          </div>
+          <div class="btn-row">
+            <button data-devreject="${r.id}" class="btn-outline" style="border-color:var(--rose-600)!important;color:var(--rose-600);">Reject</button>
+            <button data-devapprove="${r.id}" class="btn-primary">Approve this device</button>
+          </div>
+        </div>`).join('') : `<div class="empty-note">No new device requests waiting.</div>`}
+      ${deviceHistory.length ? `
+      <div class="section-label" style="margin-top:16px;"><span>Recent device decisions</span></div>
+      ${deviceHistory.map(r=>`
+        <div class="card" style="opacity:.7;">
+          <div style="font-size:12px;">${r.status==='approved'?'✓ Approved':'✕ Rejected'} — ${esc(r.userName)} on ${esc(r.deviceLabel)}</div>
+        </div>`).join('')}
+      ` : ''}
+      <div class="section-label" style="margin-top:20px;"><span>Customers &amp; Items changes</span></div>
+      ` : ''}
       <div class="section-label"><span>Needs an Admin's approval</span></div>
       ${pendingAdmin.length ? pendingAdmin.map(p=>cardFor(p,'admin')).join('') : `<div class="empty-note">Nothing waiting here.</div>`}
 
@@ -1760,6 +1948,31 @@ function renderApprovalsTab(box, role){
       ` : ''}
     `;
 
+    box.querySelectorAll('[data-devapprove]').forEach(btn=> btn.addEventListener('click', async ()=>{
+      const reqId = btn.dataset.devapprove;
+      const req = (state.deviceRequests||[]).find(r=>r.id===reqId);
+      if(!req) return;
+      const reqs = state.deviceRequests.map(r=> r.id===reqId ? { ...r, status:'approved', decidedBy: mine, decidedAt: new Date().toISOString() } : r);
+      state.deviceRequests = reqs;
+      await storageSet('deviceRequests', reqs, true);
+      const users = state.users.map(u=> u.id===req.userId ? { ...u, approvedDevices: [...(u.approvedDevices||[]), { deviceId: req.deviceId, deviceLabel: req.deviceLabel, approvedAt: new Date().toISOString() }] } : u);
+      state.users = users;
+      await storageSet('users', users, true);
+      showToast('Device approved — they can now log in');
+      notifyTelegram(`✅ MKL Billing — approved ${req.userName}'s device (${req.deviceLabel}).`);
+      draw();
+    }));
+    box.querySelectorAll('[data-devreject]').forEach(btn=> btn.addEventListener('click', async ()=>{
+      if(!confirm('Reject this device? It will not be allowed to log in.')) return;
+      const reqId = btn.dataset.devreject;
+      const req = (state.deviceRequests||[]).find(r=>r.id===reqId);
+      const reqs = state.deviceRequests.map(r=> r.id===reqId ? { ...r, status:'rejected', decidedBy: mine, decidedAt: new Date().toISOString() } : r);
+      state.deviceRequests = reqs;
+      await storageSet('deviceRequests', reqs, true);
+      showToast('Device rejected');
+      if(req) notifyTelegram(`❌ MKL Billing — rejected ${req.userName}'s device (${req.deviceLabel}).`);
+      draw();
+    }));
     box.querySelectorAll('[data-approve]').forEach(btn=> btn.addEventListener('click', async ()=>{
       const [id, stage] = btn.dataset.approve.split('|');
       const list = state.pendingChanges.map(p=>{
@@ -1863,6 +2076,18 @@ function renderUsersTab(box, role){
         <div style="font-size:11px;color:var(--stone-400);margin-top:8px;">
           <b style="color:var(--stone-500);">Device:</b> ${u.lastDevice ? esc(u.lastDevice) : 'Never logged in'}${u.lastLoginAt ? ' · last seen '+new Date(u.lastLoginAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}
         </div>
+        ${u.role!=='owner' && (u.approvedDevices||[]).length ? `
+        <div style="margin-top:8px;">
+          <div style="font-size:11px;font-weight:700;color:var(--stone-500);margin-bottom:4px;">Approved devices</div>
+          ${(u.approvedDevices||[]).map((d,i)=>{
+            const label = typeof d==='string' ? d : d.deviceLabel;
+            const devId = typeof d==='string' ? d : d.deviceId;
+            return `<div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--stone-500);padding:3px 0;">
+              <span>${esc(label)}</span>
+              <button data-removedevice="${u._rowKey}|${esc(devId)}" class="link-btn" style="color:var(--rose-600);font-size:11px;">Remove</button>
+            </div>`;
+          }).join('')}
+        </div>` : ''}
         ${u.role!=='owner' ? `<button data-remove="${u._rowKey}" class="link-btn" style="color:var(--rose-600);margin-top:8px;">Remove account</button>` : ''}
       </div>`;
     }).join('') || `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">No accounts yet.</div>`;
@@ -1902,6 +2127,14 @@ function renderUsersTab(box, role){
       }
       u.id = newId;
       markDirty();
+    }));
+    list.querySelectorAll('[data-removedevice]').forEach(b=> b.addEventListener('click', ()=>{
+      const [rowKey, devId] = b.dataset.removedevice.split('|');
+      const u = localUsers.find(x=>x._rowKey===rowKey);
+      if(!u) return;
+      if(!confirm('Remove this device? It will be signed out and can\'t be used again unless re-approved.')) return;
+      u.approvedDevices = (u.approvedDevices||[]).filter(d=> (typeof d==='string'?d:d.deviceId) !== devId);
+      markDirty(); draw();
     }));
     list.querySelectorAll('[data-remove]').forEach(b=> b.addEventListener('click', ()=>{
       const u = localUsers.find(x=>x._rowKey===b.dataset.remove);
@@ -3337,7 +3570,7 @@ function renderAdminTab(box){
   draw();
 }
 
-init();
+window.mklAuthReady.then(init);
 </script>
 </body>
 </html>
