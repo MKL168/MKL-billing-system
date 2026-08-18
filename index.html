@@ -1603,9 +1603,12 @@ function renderDeliver(container){
     };
     state.deliverForm = freshDeliverForm();
     renderDeliver(container);
-    const freshBtn = document.getElementById('dl-send');
+    // NOTE: unlike Pickup, the delivery form resets to "no ticket selected" after
+    // saving — so #dl-send doesn't exist in the DOM at this point. Reuse the
+    // original button reference (still valid even though it's no longer visible)
+    // instead of re-querying, which would silently find nothing and skip sharing.
     sendPdfFromPrintArea(
-      freshBtn, buildPrintTicket, [savedTicketData],
+      btn, buildPrintTicket, [savedTicketData],
       `Ticket_${padTicket(savedTicket.ticketNo)}.pdf`, 'Mekong Laundry — Delivery Ticket', `Ticket #${padTicket(savedTicket.ticketNo)} — ${ticket.custName}`
     );
   });
