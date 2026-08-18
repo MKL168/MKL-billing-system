@@ -1004,69 +1004,54 @@ async function logoutUser(){
 }
 
 function renderLogin(app){
-  const active = state.users.filter(u=> u.active!==false);
-  const pinUser = active.find(u=> u.id===state.loginPinFor);
-
   app.innerHTML = `
     <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--stone-50);">
       <div style="width:100%;max-width:340px;">
         <div style="text-align:center;margin-bottom:24px;">
           <div class="brand-badge" style="width:48px;height:48px;font-size:18px;margin:0 auto 10px;background:var(--teal-800);color:#fff;">ML</div>
           <div style="font-weight:900;font-size:20px;letter-spacing:-.02em;">MKL BILLING SYSTEM</div>
-          <div style="font-size:11px;color:var(--stone-400);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;">Who's using this?</div>
+          <div style="font-size:11px;color:var(--stone-400);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;">Sign in</div>
         </div>
-
-        ${!pinUser ? `
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            ${active.map(u=>`
-              <button data-selectuser="${u.id}" class="cust-card" style="text-align:left;display:flex;align-items:center;justify-content:space-between;margin-bottom:0;">
-                <span style="font-weight:800;">${esc(u.name)}</span>
-                <span class="pill ${u.role==='owner'?'closed':u.role==='admin'?'open':''}" style="margin-bottom:0;${u.role==='worker'?'background:var(--stone-100);color:var(--stone-500);':''}">${u.role}</span>
-              </button>`).join('')}
-          </div>
-          ${active.length===0 ? `<div class="empty-note">No accounts set up yet.</div>` : ''}
-        ` : `
-          <div class="cust-card">
-            <div style="font-weight:800;margin-bottom:10px;text-align:center;">${esc(pinUser.name)}</div>
-            <label class="field-label">Enter PIN</label>
-            <input id="login-pin" type="password" inputmode="numeric" pattern="[0-9]*" class="field-input mono" style="text-align:center;font-size:20px;letter-spacing:.2em;" autofocus />
-            <div id="login-error" style="color:var(--rose-600);font-size:12px;font-weight:700;margin-top:6px;min-height:16px;"></div>
-            <div class="btn-row" style="margin-top:10px;">
-              <button id="login-back" class="btn-outline">Back</button>
-              <button id="login-submit" class="btn-primary">Log in</button>
-            </div>
-          </div>
-        `}
+        <div class="cust-card">
+          <label class="field-label">Name</label>
+          <input id="login-name" type="text" class="field-input" autocomplete="username" autofocus />
+          <label class="field-label" style="margin-top:10px;">Password</label>
+          <input id="login-pin" type="password" class="field-input mono" autocomplete="current-password" />
+          <div id="login-error" style="color:var(--rose-600);font-size:12px;font-weight:700;margin-top:6px;min-height:16px;"></div>
+          <button id="login-submit" class="btn-primary" style="width:100%;margin-top:10px;">Log in</button>
+        </div>
       </div>
     </div>
   `;
 
-  if(!pinUser){
-    app.querySelectorAll('[data-selectuser]').forEach(b=> b.addEventListener('click', ()=>{
-      state.loginPinFor = b.dataset.selectuser;
-      renderLogin(app);
-    }));
-  } else {
-    const pinInput = app.querySelector('#login-pin');
-    const tryLogin = async () => {
-      const submitBtn = app.querySelector('#login-submit');
-      submitBtn.disabled = true;
-      const result = await loginAs(pinUser.id, pinInput.value);
-      if(result.ok) return; // completeLogin already re-rendered the app
-      if(result.pending){
-        renderWaitingForApproval(app, result.requestId, pinUser);
-        return;
-      }
-      app.querySelector('#login-error').textContent = 'Incorrect PIN';
-      pinInput.value = '';
-      pinInput.focus();
-      submitBtn.disabled = false;
-    };
-    pinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
-    app.querySelector('#login-submit').addEventListener('click', tryLogin);
-    app.querySelector('#login-back').addEventListener('click', ()=>{ state.loginPinFor = null; renderLogin(app); });
-    pinInput.focus();
-  }
+  const nameInput = app.querySelector('#login-name');
+  const pinInput = app.querySelector('#login-pin');
+  const errBox = app.querySelector('#login-error');
+  const submitBtn = app.querySelector('#login-submit');
+
+  const tryLogin = async () => {
+    const typedName = nameInput.value.trim().toLowerCase();
+    const u = state.users.find(x=> x.active!==false && (x.name||'').trim().toLowerCase()===typedName);
+    if(!u){
+      errBox.textContent = 'Incorrect name or password';
+      pinInput.value = ''; pinInput.focus();
+      return;
+    }
+    submitBtn.disabled = true;
+    const result = await loginAs(u.id, pinInput.value);
+    if(result.ok) return; // completeLogin already re-rendered the app
+    if(result.pending){
+      renderWaitingForApproval(app, result.requestId, u);
+      return;
+    }
+    errBox.textContent = 'Incorrect name or password';
+    pinInput.value = ''; pinInput.focus();
+    submitBtn.disabled = false;
+  };
+  nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') pinInput.focus(); });
+  pinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
+  submitBtn.addEventListener('click', tryLogin);
+  nameInput.focus();
 }
 
 function renderWaitingForApproval(app, reqId, u){
