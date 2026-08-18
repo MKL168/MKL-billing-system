@@ -370,7 +370,7 @@ function freshPickupForm(){
   return { custId: state.customers[0]?.id || '', date: todayStr(), worker: currentUserName(), qtys:{}, remarks:{}, collectedBy:null, pickUpBy:null };
 }
 function freshDeliverForm(){
-  return { ticketId:null, date: todayStr(), worker: currentUserName(), delivered:{}, remarks:{}, deliveryBy:null, receivedBy:null };
+  return { ticketId:null, date: todayStr(), worker: currentUserName(), delivered:{}, remarks:{}, deliveryBy:null, receivedBy:null, hideShortOver:false };
 }
 
 function ticketsFor(custId){ return state.tickets[custId] || []; }
@@ -934,6 +934,10 @@ async function completeLogin(u){
   await storageSet('users', updated, true);
   state.currentUser = updated.find(x=>x.id===u.id);
   await storageSet('currentUserId', u.id, false); // personal — this device only
+  // These were created at page-load time, before anyone was logged in, so
+  // they'd otherwise still show "Unnamed" for this whole session.
+  if(state.pickupForm) state.pickupForm.worker = currentUserName();
+  if(state.deliverForm) state.deliverForm.worker = currentUserName();
   render();
 }
 // Returns { ok, pending, requestId } instead of a plain boolean, since a
@@ -1161,6 +1165,7 @@ function renderVisitForm(container){
    ticketCardHtml, which already hides Approve controls from non-Admins. */
 function renderRecentTickets(box){
   if(!state.recentTicketsCust) state.recentTicketsCust = 'all';
+  if(state.recentTicketsHideSO===undefined) state.recentTicketsHideSO = false;
   box.innerHTML = `
     <div class="ticket-header"><div><div class="eyebrow">Field entry</div><div class="title">Recent tickets</div></div></div>
     <div class="mb16">
@@ -1170,9 +1175,14 @@ function renderRecentTickets(box){
         ${state.customers.map(c=>`<option value="${c.id}" ${state.recentTicketsCust===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
       </select>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--stone-500);margin-bottom:14px;">
+      <input type="checkbox" id="rt-hideso" ${state.recentTicketsHideSO?'checked':''} style="width:auto;" />
+      Hide Short/Over columns when printing/sending from this list
+    </label>
     <div id="rt-list"></div>
   `;
   box.querySelector('#rt-cust').addEventListener('change', e=>{ state.recentTicketsCust = e.target.value; drawRecentList(); });
+  box.querySelector('#rt-hideso').addEventListener('change', e=>{ state.recentTicketsHideSO = e.target.checked; });
   drawRecentList();
 
   function drawRecentList(){
@@ -1214,6 +1224,7 @@ function renderRecentTickets(box){
       buildPrintTicket({
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        hideShortOver: !!state.recentTicketsHideSO,
       });
       window.print();
     }));
@@ -1224,6 +1235,7 @@ function renderRecentTickets(box){
       const ticketData = {
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        hideShortOver: !!state.recentTicketsHideSO,
       };
       sendPdfFromPrintArea(
         e.currentTarget, buildPrintTicket, [ticketData],
@@ -1503,6 +1515,10 @@ function renderDeliver(container){
       ${ticket.packedAt ? `Amounts last saved by <b>${esc(ticket.packedBy||'—')}</b> on ${fmtDate(ticket.packedDate)}.` : 'Enter the delivery amounts as soon as they\'re known — e.g. when the goods are loaded onto the truck. Signatures aren\'t needed until the goods reach the customer and are checked.'}
     </div>
 
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--stone-500);margin-bottom:10px;">
+      <input type="checkbox" id="dl-hideso" ${f.hideShortOver?'checked':''} style="width:auto;" />
+      Hide Short/Over columns on the printed/sent ticket (client-facing copy)
+    </label>
     <div class="btn-row mb16">
       <button id="dl-print" type="button" class="btn-outline">Print ticket</button>
       <button id="dl-send" type="button" class="btn-outline">Send ticket</button>
@@ -1537,10 +1553,14 @@ function renderDeliver(container){
   setupSignaturePad(body.querySelector('#dl-sig1'), body.querySelector('#dl-sig1-clear'), (d)=> f.deliveryBy = d);
   setupSignaturePad(body.querySelector('#dl-sig2'), body.querySelector('#dl-sig2-clear'), (d)=> f.receivedBy = d);
 
+  const dlHideSoBox = body.querySelector('#dl-hideso');
+  dlHideSoBox.addEventListener('change', ()=>{ f.hideShortOver = dlHideSoBox.checked; });
+
   const buildDlTicketData = () => ({
     ticketNo: ticket.ticketNo, date: ticket.date, customerName: ticket.custName, stage:'delivered',
     items: mergeDeliverItems(ticket, f),
     collectedBy: ticket.collectedBy, pickUpBy: ticket.pickUpBy, deliveryBy: f.deliveryBy, receivedBy: f.receivedBy, deliveredDate: f.date,
+    hideShortOver: !!f.hideShortOver,
   });
 
   body.querySelector('#dl-print').addEventListener('click', ()=>{
@@ -1571,6 +1591,7 @@ function renderDeliver(container){
       ticketNo: savedTicket.ticketNo, date: savedTicket.date, customerName: ticket.custName, stage:'delivered',
       items: savedTicket.items, collectedBy: savedTicket.collectedBy, pickUpBy: savedTicket.pickUpBy,
       deliveryBy: savedTicket.deliveryBy, receivedBy: savedTicket.receivedBy, deliveredDate: savedTicket.deliveredDate,
+      hideShortOver: !!f.hideShortOver,
     };
     state.deliverForm = freshDeliverForm();
     renderDeliver(container);
@@ -1667,10 +1688,12 @@ function renderDeliverTable(ticket){
 /* ---------------- print ticket builder ---------------- */
 function buildPrintTicket(t){
   const area = document.getElementById('print-area');
+  const hideSO = !!t.hideShortOver;
+  const colCount = hideSO ? 5 : 7;
   const grouped = groupByCategory(t.items);
   let rowNo = 0;
   const rowsHtml = grouped.map(({cat, items})=>{
-    const catRow = `<tr class="pt-cat"><td colspan="7">${esc(cat)}</td></tr>`;
+    const catRow = `<tr class="pt-cat"><td colspan="${colCount}">${esc(cat)}</td></tr>`;
     const rows = items.map(it=>{
       rowNo++;
       const remainder = it.pickupQty - (it.deliveryQty||0);
@@ -1679,7 +1702,7 @@ function buildPrintTicket(t){
       return `<tr>
         <td>${rowNo}</td><td class="pt-name">${esc(it.name)}</td>
         <td>${it.pickupQty||''}</td><td>${t.stage==='delivered' ? (it.deliveryQty||'') : ''}</td>
-        <td>${short}</td><td>${over}</td>
+        ${hideSO ? '' : `<td>${short}</td><td>${over}</td>`}
         <td class="pt-name">${esc(it.remarks||'')}</td>
       </tr>`;
     }).join('');
@@ -1701,7 +1724,7 @@ function buildPrintTicket(t){
     </div>
 
     <table class="pt-table">
-      <thead><tr><th>No</th><th>Items</th><th>Pick&nbsp;Up</th><th>Delivery</th><th>Short</th><th>Over</th><th>Remark</th></tr></thead>
+      <thead><tr><th>No</th><th>Items</th><th>Pick&nbsp;Up</th><th>Delivery</th>${hideSO ? '' : '<th>Short</th><th>Over</th>'}<th>Remark</th></tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table>
 
@@ -2156,10 +2179,15 @@ function renderTicketsTab(box){
         </select>
       </div>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--stone-500);margin-bottom:14px;">
+      <input type="checkbox" id="tk-hideso" ${o.hideShortOverOnPrint?'checked':''} style="width:auto;" />
+      Hide Short/Over columns when printing/sending from this list
+    </label>
     <div id="tk-list"></div>
   `;
   box.querySelector('#tk-status').addEventListener('change', e=>{ o.statusFilter = e.target.value; renderTicketList(); });
   box.querySelector('#tk-cust').addEventListener('change', e=>{ o.custFilter = e.target.value; renderTicketList(); });
+  box.querySelector('#tk-hideso').addEventListener('change', e=>{ o.hideShortOverOnPrint = e.target.checked; });
   renderTicketList();
 }
 
@@ -2214,6 +2242,7 @@ function renderTicketList(){
       buildPrintTicket({
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        hideShortOver: !!o.hideShortOverOnPrint,
       });
       window.print();
     });
@@ -2226,6 +2255,7 @@ function renderTicketList(){
       const ticketData = {
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        hideShortOver: !!o.hideShortOverOnPrint,
       };
       sendPdfFromPrintArea(
         e.currentTarget, buildPrintTicket, [ticketData],
