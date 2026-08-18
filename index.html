@@ -247,33 +247,38 @@
     }
     return fbSecondary;
   }
-  function withOwnerAuth(cb){
-    try{
-      fbSecondaryApp();
-      const auth = fbSecondary.auth();
-      if(auth.currentUser && auth.currentUser.email===OWNER_FB_EMAIL){ cb(); return; }
-      auth.signInWithEmailAndPassword(OWNER_FB_EMAIL, OWNER_FB_PASSWORD).then(()=>cb())
-        .catch(e=>console.warn('[Owner DB auth] sign-in failed:', e));
-    }catch(e){ console.warn('[Owner DB auth] error:', e); }
+  function withOwnerAuth(){
+    return new Promise((resolve)=>{
+      try{
+        fbSecondaryApp();
+        const auth = fbSecondary.auth();
+        if(auth.currentUser && auth.currentUser.email===OWNER_FB_EMAIL){ resolve(); return; }
+        auth.signInWithEmailAndPassword(OWNER_FB_EMAIL, OWNER_FB_PASSWORD).then(()=>resolve())
+          .catch(e=>{console.warn('[Owner DB auth] sign-in failed:', e); resolve();});
+      }catch(e){ console.warn('[Owner DB auth] error:', e); resolve(); }
+    });
   }
   function grantApprovedUid(fbUid){
-    if(!fbUid) return;
-    withOwnerAuth(()=>{
-      fbSecondaryDB.ref('approved/billing/'+fbUid).set(true).catch(e=>console.warn('[Owner DB auth] grant failed:', e));
-    });
+    if(!fbUid) return Promise.resolve();
+    return withOwnerAuth().then(()=>
+      fbSecondaryDB.ref('approved/billing/'+fbUid).set(true).catch(e=>console.warn('[Owner DB auth] grant failed:', e))
+    );
   }
   function revokeApprovedUid(fbUid){
-    if(!fbUid) return;
-    withOwnerAuth(()=>{
-      fbSecondaryDB.ref('approved/billing/'+fbUid).remove().catch(e=>console.warn('[Owner DB auth] revoke failed:', e));
-    });
+    if(!fbUid) return Promise.resolve();
+    return withOwnerAuth().then(()=>
+      fbSecondaryDB.ref('approved/billing/'+fbUid).remove().catch(e=>console.warn('[Owner DB auth] revoke failed:', e))
+    );
   }
   // Owner logging in on this device: make sure THIS device's own anonymous uid
   // (used for its regular data sync) is on the approved list too — otherwise
   // the Owner's own reads/writes would be blocked by the same rule as everyone else.
+  // Returns a promise so login can wait for it — otherwise the Owner could act
+  // (e.g. create a user) before this finishes, and that write would silently fail.
   function ownerSelfApprove(){
     const myUid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
-    if(myUid) grantApprovedUid(myUid);
+    if(!myUid) return Promise.resolve();
+    return grantApprovedUid(myUid);
   }
 </script>
 
@@ -986,7 +991,9 @@ function deviceLabel(){
 }
 
 async function completeLogin(u){
-  if(u.role==='owner') ownerSelfApprove();
+  if(u.role==='owner'){
+    await Promise.race([ ownerSelfApprove(), new Promise(r=>setTimeout(r,4000)) ]);
+  }
   const updated = state.users.map(x=> x.id===u.id ? { ...x, lastDevice: deviceLabel(), lastLoginAt: new Date().toISOString() } : x);
   state.users = updated;
   await storageSet('users', updated, true);
