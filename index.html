@@ -116,7 +116,7 @@
   .pt-title{font-size:20px;font-weight:900;letter-spacing:-.02em;}
   .pt-sub{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#555;}
   .pt-ticketno{font-size:15px;font-weight:900;color:#b91c1c;}
-  .pt-meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;font-size:13px;}
+  .pt-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px;font-size:13px;}
   .pt-meta div b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#666;font-weight:700;}
   table.pt-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;}
   table.pt-table th, table.pt-table td{border:1px solid #999;padding:3px 5px;text-align:center;}
@@ -1232,6 +1232,7 @@ function renderRecentTickets(box){
       buildPrintTicket({
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        worker: t.worker, deliveryWorker: t.deliveryWorker,
         hideShortOver: !!state.recentTicketsHideSO,
       });
       window.print();
@@ -1243,6 +1244,7 @@ function renderRecentTickets(box){
       const ticketData = {
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        worker: t.worker, deliveryWorker: t.deliveryWorker,
         hideShortOver: !!state.recentTicketsHideSO,
       };
       sendPdfFromPrintArea(
@@ -1340,6 +1342,7 @@ function renderNewPickup(container){
   const buildNpTicketData = () => ({
     ticketNo: nextNo, date: f.date, customerName: customer?.name || '', stage:'pickup',
     items: buildTicketItemsFromForm(customer, f), collectedBy: f.collectedBy, pickUpBy: f.pickUpBy, deliveryBy:null, receivedBy:null, deliveredDate:null,
+    worker: f.worker,
   });
 
   container.querySelector('#np-print').addEventListener('click', ()=>{
@@ -1376,6 +1379,7 @@ function renderNewPickup(container){
     const savedTicketData = {
       ticketNo: savedTicket.ticketNo, date: savedTicket.date, customerName: customer?.name || '', stage:'pickup',
       items: savedTicket.items, collectedBy: savedTicket.collectedBy, pickUpBy: savedTicket.pickUpBy, deliveryBy:null, receivedBy:null, deliveredDate:null,
+      worker: savedTicket.worker,
     };
     state.pickupForm = freshPickupForm();
     state.pickupForm.custId = custIdAtSave;
@@ -1569,6 +1573,7 @@ function renderDeliver(container){
     items: mergeDeliverItems(ticket, f),
     collectedBy: ticket.collectedBy, pickUpBy: ticket.pickUpBy, deliveryBy: f.deliveryBy, receivedBy: f.receivedBy, deliveredDate: f.date,
     hideShortOver: !!f.hideShortOver,
+    worker: ticket.worker, deliveryWorker: f.worker,
   });
 
   body.querySelector('#dl-print').addEventListener('click', ()=>{
@@ -1600,6 +1605,7 @@ function renderDeliver(container){
       items: savedTicket.items, collectedBy: savedTicket.collectedBy, pickUpBy: savedTicket.pickUpBy,
       deliveryBy: savedTicket.deliveryBy, receivedBy: savedTicket.receivedBy, deliveredDate: savedTicket.deliveredDate,
       hideShortOver: !!f.hideShortOver,
+      worker: savedTicket.worker, deliveryWorker: savedTicket.deliveryWorker,
     };
     state.deliverForm = freshDeliverForm();
     renderDeliver(container);
@@ -1732,6 +1738,8 @@ function buildPrintTicket(t){
       <div><b>Customer</b>${esc(t.customerName)}</div>
       <div><b>Pickup date</b>${fmtDate(t.date)}</div>
       <div><b>Delivery date</b>${t.deliveredDate ? fmtDate(t.deliveredDate) : '—'}</div>
+      ${t.worker ? `<div><b>Picked up by</b>${esc(t.worker)}</div>` : ''}
+      ${t.stage==='delivered' && t.deliveryWorker ? `<div><b>Delivered by</b>${esc(t.deliveryWorker)}</div>` : ''}
     </div>
 
     <table class="pt-table">
@@ -2257,6 +2265,7 @@ function renderTicketList(){
       buildPrintTicket({
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        worker: t.worker, deliveryWorker: t.deliveryWorker,
         hideShortOver: !!o.hideShortOverOnPrint,
       });
       window.print();
@@ -2270,6 +2279,7 @@ function renderTicketList(){
       const ticketData = {
         ticketNo: t.ticketNo, date: t.date, customerName: cust.name, stage: t.status==='closed'?'delivered':'pickup',
         items: t.items, collectedBy: t.collectedBy, pickUpBy: t.pickUpBy, deliveryBy: t.deliveryBy, receivedBy: t.receivedBy, deliveredDate: t.deliveredDate,
+        worker: t.worker, deliveryWorker: t.deliveryWorker,
         hideShortOver: !!o.hideShortOverOnPrint,
       };
       sendPdfFromPrintArea(
