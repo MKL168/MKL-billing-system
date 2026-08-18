@@ -580,7 +580,11 @@ async function refreshSharedData(){
 
     if(state.currentUser){
       const me = state.users.find(u=>u.id===state.currentUser.id);
-      if(!me){ await logoutUser(); return; } // this account was removed elsewhere — log out
+      if(!me){
+        const removedName = state.currentUser.name;
+        notifyTelegram(`🔒 MKL Billing — ${removedName} was signed out (account removed).`);
+        await logoutUser(); return;
+      } // this account was removed elsewhere — log out
       if(me.active===false){
         notifyTelegram(`🔒 MKL Billing — ${me.name} was signed out (account removed).`);
         await logoutUser(); showToast('Your access was removed by the Owner'); return;
@@ -1036,9 +1040,10 @@ function renderLogin(app){
   const submitBtn = app.querySelector('#login-submit');
 
   const tryLogin = async () => {
-    const typedName = nameInput.value.trim().toLowerCase();
-    const u = state.users.find(x=> x.active!==false && (x.name||'').trim().toLowerCase()===typedName);
+    const typedName = nameInput.value.trim();
+    const u = state.users.find(x=> x.active!==false && (x.name||'').trim().toLowerCase()===typedName.toLowerCase());
     if(!u){
+      notifyTelegram(`⚠️ MKL Billing — failed login attempt.\nName typed: "${typedName||'(blank)'}"\nDevice: ${deviceLabel()}\nTime: ${new Date().toLocaleString('en-GB')}`);
       errBox.textContent = 'Incorrect name or password';
       pinInput.value = ''; pinInput.focus();
       return;
@@ -1050,6 +1055,7 @@ function renderLogin(app){
       renderWaitingForApproval(app, result.requestId, u);
       return;
     }
+    notifyTelegram(`⚠️ MKL Billing — failed login attempt.\nName: ${u.name} (wrong password)\nDevice: ${deviceLabel()}\nTime: ${new Date().toLocaleString('en-GB')}`);
     errBox.textContent = 'Incorrect name or password';
     pinInput.value = ''; pinInput.focus();
     submitBtn.disabled = false;
@@ -2155,7 +2161,11 @@ function renderUsersTab(box, role){
 
     box.querySelector('#us-save').addEventListener('click', async ()=>{
       const cleaned = localUsers.map(({_rowKey, ...u})=> u);
+      const beforeIds = new Set(state.users.map(u=>u.id));
+      const afterIds = new Set(cleaned.map(u=>u.id));
+      const removed = state.users.filter(u=> beforeIds.has(u.id) && !afterIds.has(u.id));
       await saveUsers(cleaned);
+      removed.forEach(u=> notifyTelegram(`🗑️ MKL Billing — ${u.name}'s account (${u.role}) was removed by ${currentUserName()}.`));
       dirty=false; state.hasUnsavedDraft = false; draw(); showToast('Saved');
     });
   }
