@@ -208,10 +208,13 @@
     if(!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN.indexOf('PASTE')===0) return;
     if(!TELEGRAM_CHAT_ID || TELEGRAM_CHAT_ID.indexOf('PASTE')===0) return;
     try{
-      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,{
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
-      });
+      // GET with the message in the URL, not a JSON POST — a POST with a
+      // Content-Type: application/json header triggers a CORS preflight that
+      // Telegram's API doesn't answer correctly, which silently drops every
+      // message. A plain GET avoids the preflight entirely.
+      const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`
+        + `?chat_id=${encodeURIComponent(TELEGRAM_CHAT_ID)}&text=${encodeURIComponent(text)}`;
+      await fetch(url);
     }catch(e){ console.warn('[MKL Billing] Telegram notify failed:', e); }
   }
   // Stable per-browser identifier — persists across logins/logouts on this
@@ -223,6 +226,54 @@
       localStorage.setItem('mkl_billing_device_id', id);
     }
     return id;
+  }
+
+  // ═══ OWNER-PRIVILEGED DATABASE ACCESS (secondary Firebase app instance) ═══
+  // The primary app above stays signed in anonymously — its uid is the stable
+  // per-device fingerprint used for regular data sync, and must never change
+  // just because someone logs into the app as Owner on this device. This
+  // secondary instance is only ever used to sign in as the real Owner account
+  // and perform the one privileged write that grants a device database access
+  // (writing to /approved/billing/{uid}). Everything else keeps using the
+  // primary instance exactly as before.
+  const OWNER_FB_EMAIL = 'owner@mklms.internal';
+  const OWNER_FB_PASSWORD = 'MekongOwner2024!'; // same credential used across both MKL apps
+  let fbSecondary = null, fbSecondaryDB = null;
+  function fbSecondaryApp(){
+    if(!fbSecondary){
+      try{ fbSecondary = firebase.initializeApp(firebaseConfig, 'owner-secondary'); }
+      catch(e){ fbSecondary = firebase.app('owner-secondary'); }
+      fbSecondaryDB = fbSecondary.database();
+    }
+    return fbSecondary;
+  }
+  function withOwnerAuth(cb){
+    try{
+      fbSecondaryApp();
+      const auth = fbSecondary.auth();
+      if(auth.currentUser && auth.currentUser.email===OWNER_FB_EMAIL){ cb(); return; }
+      auth.signInWithEmailAndPassword(OWNER_FB_EMAIL, OWNER_FB_PASSWORD).then(()=>cb())
+        .catch(e=>console.warn('[Owner DB auth] sign-in failed:', e));
+    }catch(e){ console.warn('[Owner DB auth] error:', e); }
+  }
+  function grantApprovedUid(fbUid){
+    if(!fbUid) return;
+    withOwnerAuth(()=>{
+      fbSecondaryDB.ref('approved/billing/'+fbUid).set(true).catch(e=>console.warn('[Owner DB auth] grant failed:', e));
+    });
+  }
+  function revokeApprovedUid(fbUid){
+    if(!fbUid) return;
+    withOwnerAuth(()=>{
+      fbSecondaryDB.ref('approved/billing/'+fbUid).remove().catch(e=>console.warn('[Owner DB auth] revoke failed:', e));
+    });
+  }
+  // Owner logging in on this device: make sure THIS device's own anonymous uid
+  // (used for its regular data sync) is on the approved list too — otherwise
+  // the Owner's own reads/writes would be blocked by the same rule as everyone else.
+  function ownerSelfApprove(){
+    const myUid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
+    if(myUid) grantApprovedUid(myUid);
   }
 </script>
 
@@ -935,6 +986,7 @@ function deviceLabel(){
 }
 
 async function completeLogin(u){
+  if(u.role==='owner') ownerSelfApprove();
   const updated = state.users.map(x=> x.id===u.id ? { ...x, lastDevice: deviceLabel(), lastLoginAt: new Date().toISOString() } : x);
   state.users = updated;
   await storageSet('users', updated, true);
@@ -968,9 +1020,10 @@ async function loginAs(userId, pin){
 
   // New, unrecognized device for this account — block, notify, wait.
   const reqId = uid();
+  const myFbUid = (firebase.auth().currentUser && firebase.auth().currentUser.uid) || null;
   const request = {
     id: reqId, userId: u.id, userName: u.name, role: u.role,
-    deviceId, deviceLabel: deviceLabel(),
+    deviceId, deviceLabel: deviceLabel(), fbUid: myFbUid,
     requestedAt: new Date().toISOString(), status: 'pending',
   };
   const reqs = [...(state.deviceRequests||[]), request];
@@ -1982,9 +2035,10 @@ function renderApprovalsTab(box, role){
       const reqs = state.deviceRequests.map(r=> r.id===reqId ? { ...r, status:'approved', decidedBy: mine, decidedAt: new Date().toISOString() } : r);
       state.deviceRequests = reqs;
       await storageSet('deviceRequests', reqs, true);
-      const users = state.users.map(u=> u.id===req.userId ? { ...u, approvedDevices: [...(u.approvedDevices||[]), { deviceId: req.deviceId, deviceLabel: req.deviceLabel, approvedAt: new Date().toISOString() }] } : u);
+      const users = state.users.map(u=> u.id===req.userId ? { ...u, approvedDevices: [...(u.approvedDevices||[]), { deviceId: req.deviceId, deviceLabel: req.deviceLabel, fbUid: req.fbUid||null, approvedAt: new Date().toISOString() }] } : u);
       state.users = users;
       await storageSet('users', users, true);
+      grantApprovedUid(req.fbUid);
       showToast('Device approved — they can now log in');
       notifyTelegram(`✅ MKL Billing — approved ${req.userName}'s device (${req.deviceLabel}).`);
       draw();
@@ -2172,9 +2226,22 @@ function renderUsersTab(box, role){
 
     box.querySelector('#us-save').addEventListener('click', async ()=>{
       const cleaned = localUsers.map(({_rowKey, ...u})=> u);
-      const beforeIds = new Set(state.users.map(u=>u.id));
+      const beforeById = new Map(state.users.map(u=>[u.id,u]));
       const afterIds = new Set(cleaned.map(u=>u.id));
-      const removed = state.users.filter(u=> beforeIds.has(u.id) && !afterIds.has(u.id));
+      const removed = state.users.filter(u=> beforeById.has(u.id) && !afterIds.has(u.id));
+      // Revoke every removed account's approved devices at the database level.
+      removed.forEach(u=> (u.approvedDevices||[]).forEach(d=> revokeApprovedUid(typeof d==='string'?null:d.fbUid)));
+      // Revoke devices that were individually removed from a surviving account.
+      cleaned.forEach(u=>{
+        const before = beforeById.get(u.id);
+        if(!before) return;
+        const beforeDevIds = (before.approvedDevices||[]).map(d=> typeof d==='string'?d:d.deviceId);
+        const afterDevIds = new Set((u.approvedDevices||[]).map(d=> typeof d==='string'?d:d.deviceId));
+        (before.approvedDevices||[]).forEach(d=>{
+          const devId = typeof d==='string'?d:d.deviceId;
+          if(!afterDevIds.has(devId)) revokeApprovedUid(typeof d==='string'?null:d.fbUid);
+        });
+      });
       await saveUsers(cleaned);
       removed.forEach(u=> notifyTelegram(`🗑️ MKL Billing — ${u.name}'s account (${u.role}) was removed by ${currentUserName()}.`));
       dirty=false; state.hasUnsavedDraft = false; draw(); showToast('Saved');
