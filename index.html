@@ -335,7 +335,7 @@ function buildDefaultCustomer(id, name){
   return {
     id, name, sections: [...DEFAULT_SECTIONS], items: buildDefaultItems(),
     billingType: 'credit', contactName:'', phone:'', address:'', notes:'',
-    paymentTermsDays: 30,
+    paymentTermsDays: 30, assignedWorkers: [],
   };
 }
 const DEFAULT_CUSTOMERS = [
@@ -414,6 +414,7 @@ const state = {
   lastManualBackupAt: null, // ISO timestamp of the last "Download backup" click — for the daily reminder
   toastTimer: null,
   hasUnsavedDraft: false, // true while Users/Customers & Items has unsaved local edits — background refresh must not wipe them
+  custScope: 'mine',   // 'mine' | 'all' — which customers a Worker sees in Pickup/Deliver
 };
 
 const DEFAULT_USERS = [
@@ -430,9 +431,27 @@ function freshDeliverForm(){
 }
 
 function ticketsFor(custId){ return state.tickets[custId] || []; }
-function allOpenTickets(){
+
+// A customer with no assignments at all is visible to every worker — an
+// empty assignedWorkers list means "unassigned", not "assigned to nobody".
+function isCustAssignedToMe(cust){
+  if(!state.currentUser) return true;
+  if(!cust.assignedWorkers || !cust.assignedWorkers.length) return true;
+  return cust.assignedWorkers.indexOf(state.currentUser.id) > -1;
+}
+// The set of customers a Worker should see by default — Admin/Owner always
+// see everyone, since restricting them would get in the way of running the
+// business. Workers default to their assigned customers, with an easy
+// "All Customers" toggle for when they're helping out elsewhere.
+function visibleCustomers(){
+  if(!state.currentUser || state.currentUser.role!=='worker') return state.customers;
+  if(state.custScope==='all') return state.customers;
+  return state.customers.filter(isCustAssignedToMe);
+}
+function allOpenTickets(customers){
+  const list = customers || state.customers;
   const out = [];
-  state.customers.forEach(c=> ticketsFor(c.id).filter(t=>t.status==='open').forEach(t=> out.push({...t, custName:c.name})));
+  list.forEach(c=> ticketsFor(c.id).filter(t=>t.status==='open').forEach(t=> out.push({...t, custName:c.name, custId:c.id})));
   out.sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   return out;
 }
@@ -991,6 +1010,7 @@ function deviceLabel(){
 }
 
 async function completeLogin(u){
+  state.custScope = 'mine';
   if(u.role==='owner'){
     await Promise.race([ ownerSelfApprove(), new Promise(r=>setTimeout(r,4000)) ]);
   }
@@ -1211,16 +1231,28 @@ function renderSecurityLock(app){
 function renderVisitForm(container){
   state.hasUnsavedDraft = false; // leaving Office abandons any unsaved Users/Customers draft
   const mode = state.visitMode || 'new';
+  const isWorker = state.currentUser && state.currentUser.role==='worker';
+  const showScopeToggle = isWorker && (mode==='new' || mode==='deliver');
+  const mineCount = state.customers.filter(isCustAssignedToMe).length;
+  const allCount = state.customers.length;
   container.innerHTML = `
     <div class="office-tabs" style="margin-bottom:20px;">
       <button data-mode="new" class="${mode==='new'?'active':''}">New pickup</button>
       <button data-mode="deliver" class="${mode==='deliver'?'active':''}">Complete a delivery</button>
       <button data-mode="recent" class="${mode==='recent'?'active':''}">Recent tickets</button>
     </div>
+    ${showScopeToggle ? `
+    <div class="row2" style="margin-bottom:18px;">
+      <button data-scope="mine" class="btn-outline" style="${state.custScope==='mine'?'background:var(--teal-800);color:#fff;border-color:var(--teal-800);':''}">👤 My Customers (${mineCount})</button>
+      <button data-scope="all" class="btn-outline" style="${state.custScope==='all'?'background:var(--teal-800);color:#fff;border-color:var(--teal-800);':''}">👥 All Customers (${allCount})</button>
+    </div>` : ''}
     <div id="visit-body"></div>
   `;
   container.querySelectorAll('[data-mode]').forEach(b=>{
     b.addEventListener('click', ()=>{ state.visitMode = b.dataset.mode; renderVisitForm(container); });
+  });
+  container.querySelectorAll('[data-scope]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.custScope = b.dataset.scope; renderVisitForm(container); });
   });
   const body = document.getElementById('visit-body');
   if(mode==='new') renderNewPickup(body);
@@ -1337,6 +1369,12 @@ function setupSignaturePad(canvas, clearBtn, onChange){
 /* ================= NEW PICKUP VIEW ================= */
 function renderNewPickup(container){
   const f = state.pickupForm;
+  const custOptions = visibleCustomers();
+  if(!custOptions.length){
+    container.innerHTML = `<div class="empty-note">You don't have any assigned customers yet. Ask your Owner/Admin to assign some in Office → Customers, or switch to "All Customers" above.</div>`;
+    return;
+  }
+  if(!custOptions.find(c=>c.id===f.custId)) f.custId = custOptions[0]?.id || '';
   const customer = state.customers.find(c=>c.id===f.custId);
   const total = Object.values(f.qtys).reduce((a,b)=>a+(b||0),0);
   const nextNo = state.ticketCounter + 1;
@@ -1350,7 +1388,7 @@ function renderNewPickup(container){
       <div>
         <label class="field-label">Customer</label>
         <select id="np-cust" class="field-input">
-          ${state.customers.map(c=>`<option value="${c.id}" ${c.id===f.custId?'selected':''}>${esc(c.name)}</option>`).join('')}
+          ${custOptions.map(c=>`<option value="${c.id}" ${c.id===f.custId?'selected':''}>${esc(c.name)}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -1530,7 +1568,7 @@ function attachNumericBehavior(box){
 /* ================= DELIVER VIEW ================= */
 function renderDeliver(container){
   const f = state.deliverForm;
-  const openTickets = allOpenTickets();
+  const openTickets = allOpenTickets(visibleCustomers());
   const ticket = openTickets.find(t=>t.id===f.ticketId) || null;
   const customer = ticket ? state.customers.find(c=>c.id===ticket.custId || c.name===ticket.custName) : null;
   // find owning customer id properly
@@ -3569,6 +3607,9 @@ function renderAdminTab(box){
     // ensure exactly 5 section slots
     while(cust.sections.length < 5) cust.sections.push(`Section ${cust.sections.length+1}`);
     if(!cust.billingType) cust.billingType = 'credit';
+    if(!cust.assignedWorkers) cust.assignedWorkers = [];
+
+    const workerAccounts = state.users.filter(u=>u.role==='worker' && u.active);
 
     editorBox.innerHTML = `
       <div class="cust-card">
@@ -3604,6 +3645,15 @@ function renderAdminTab(box){
           </div>
           <div></div>
         </div>`}
+        <div style="margin-top:10px;">
+          <label class="field-label">Assigned workers <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--stone-400);">(who normally handles this customer in Pickup &amp; Delivery — leave blank for "everyone")</span></label>
+          <div id="ad-workers" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+            ${workerAccounts.length ? workerAccounts.map(w=>`
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;background:${cust.assignedWorkers.indexOf(w.id)>-1?'var(--teal-50)':'var(--stone-50)'};border:1px solid ${cust.assignedWorkers.indexOf(w.id)>-1?'var(--teal-300)':'var(--stone-200)'};border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;">
+                <input type="checkbox" data-workerid="${w.id}" ${cust.assignedWorkers.indexOf(w.id)>-1?'checked':''} style="width:auto;" /> ${esc(w.name)}
+              </label>`).join('') : `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">No worker accounts yet.</div>`}
+          </div>
+        </div>
       </div>
 
       <div class="section-label" style="margin-top:8px;"><span>Editing: ${esc(cust.name)}</span><span style="font-weight:600;text-transform:none;letter-spacing:0;">5 sections · ★ = frequent (moves up) · 👁 = hidden from the field form</span></div>
@@ -3616,6 +3666,14 @@ function renderAdminTab(box){
     editorBox.querySelector('#ad-address').addEventListener('change', e=>{ cust.address = e.target.value.trim(); markDirty(); });
     const termsInput = editorBox.querySelector('#ad-terms');
     if(termsInput) termsInput.addEventListener('change', e=>{ cust.paymentTermsDays = Math.max(0, parseInt(e.target.value||'30',10)); markDirty(); });
+    editorBox.querySelectorAll('#ad-workers [data-workerid]').forEach(cb=>{
+      cb.addEventListener('change', e=>{
+        const wid = e.target.dataset.workerid;
+        if(e.target.checked){ if(cust.assignedWorkers.indexOf(wid)===-1) cust.assignedWorkers.push(wid); }
+        else { cust.assignedWorkers = cust.assignedWorkers.filter(x=>x!==wid); }
+        markDirty();
+      });
+    });
 
     const secBox = editorBox.querySelector('#ad-sections');
     secBox.innerHTML = cust.sections.map((sec, sidx)=>{
