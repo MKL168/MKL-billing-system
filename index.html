@@ -432,11 +432,12 @@ function freshDeliverForm(){
 
 function ticketsFor(custId){ return state.tickets[custId] || []; }
 
-// A customer with no assignments at all is visible to every worker — an
-// empty assignedWorkers list means "unassigned", not "assigned to nobody".
+// A customer with no assignments at all is hidden from every worker until
+// someone assigns them — Admin/Owner still always see everyone, since
+// they're the ones who decide the assignments in the first place.
 function isCustAssignedToMe(cust){
   if(!state.currentUser) return true;
-  if(!cust.assignedWorkers || !cust.assignedWorkers.length) return true;
+  if(!cust.assignedWorkers || !cust.assignedWorkers.length) return false;
   return cust.assignedWorkers.indexOf(state.currentUser.id) > -1;
 }
 // The set of customers a Worker should see by default — Admin/Owner always
@@ -3551,6 +3552,7 @@ function renderAdminTab(box){
         <button data-editcust="${c.id}" style="background:none;font-weight:800;text-align:left;flex:1;display:flex;align-items:center;gap:8px;color:${c.id===activeCustId?'var(--teal-800)':'var(--stone-900)'};">
           ${esc(c.name)}
           <span class="pill ${c.billingType==='cash'?'open':'closed'}" style="margin-bottom:0;">${c.billingType==='cash'?'Cash':'Credit'}</span>
+          ${(!c.assignedWorkers||!c.assignedWorkers.length) ? `<span class="pill" style="margin-bottom:0;background:var(--rose-100);color:var(--rose-600);" title="No workers assigned — hidden from every worker">⚠ No worker</span>` : ''}
         </button>
         <button data-removecust="${c.id}" style="background:none;color:var(--rose-600);font-weight:800;font-size:14px;">×</button>
       </div>`).join('') || `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">No customers yet.</div>`;
@@ -3613,12 +3615,12 @@ function renderAdminTab(box){
     const assignedNames = workerAccounts.filter(w=>cust.assignedWorkers.indexOf(w.id)>-1).map(w=>w.name);
 
     editorBox.innerHTML = `
-      <div class="cust-card" style="border:2px solid var(--teal-300);background:var(--teal-50);">
+      <div class="cust-card" style="border:2px solid ${assignedNames.length?'var(--teal-700)':'var(--rose-600)'};background:${assignedNames.length?'var(--teal-50)':'var(--rose-50)'};">
         <div class="section-label"><span>👤 Assigned workers for ${esc(cust.name)}</span></div>
-        <div style="font-size:13px;font-weight:800;margin-bottom:10px;color:${assignedNames.length?'var(--teal-800)':'var(--stone-500)'};">
-          ${assignedNames.length ? `Currently assigned to: ${assignedNames.map(esc).join(', ')}` : `Unassigned — visible to every worker`}
+        <div style="font-size:13px;font-weight:800;margin-bottom:10px;color:${assignedNames.length?'var(--teal-800)':'var(--rose-600)'};">
+          ${assignedNames.length ? `Currently assigned to: ${assignedNames.map(esc).join(', ')}` : `⚠ No workers assigned — this customer is hidden from every worker until you assign at least one`}
         </div>
-        <div style="font-size:11px;color:var(--stone-500);margin-bottom:10px;">Tap a worker to assign or unassign them. Multiple workers can be assigned to one customer. Leave everyone off to keep this customer visible to the whole team.</div>
+        <div style="font-size:11px;color:var(--stone-500);margin-bottom:10px;">Tap a worker to assign or unassign them. Multiple workers can be assigned to one customer. A customer with nobody assigned won't appear for any worker in Pickup &amp; Delivery — only Admins and the Owner can still see it.</div>
         <div id="ad-workers" style="display:flex;flex-wrap:wrap;gap:8px;">
           ${workerAccounts.length ? workerAccounts.map(w=>{
             const on = cust.assignedWorkers.indexOf(w.id)>-1;
