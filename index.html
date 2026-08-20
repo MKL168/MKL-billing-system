@@ -414,7 +414,7 @@ const state = {
   lastManualBackupAt: null, // ISO timestamp of the last "Download backup" click — for the daily reminder
   toastTimer: null,
   hasUnsavedDraft: false, // true while Users/Customers & Items has unsaved local edits — background refresh must not wipe them
-  custScope: 'mine',   // 'mine' | 'all' — which customers a Worker sees in Pickup/Deliver
+  custScope: 'mine',   // kept for compatibility; Workers now always see only their assigned customers
 };
 
 const DEFAULT_USERS = [
@@ -440,13 +440,11 @@ function isCustAssignedToMe(cust){
   if(!cust.assignedWorkers || !cust.assignedWorkers.length) return false;
   return cust.assignedWorkers.indexOf(state.currentUser.id) > -1;
 }
-// The set of customers a Worker should see by default — Admin/Owner always
-// see everyone, since restricting them would get in the way of running the
-// business. Workers default to their assigned customers, with an easy
-// "All Customers" toggle for when they're helping out elsewhere.
+// The set of customers a Worker is allowed to see — Admin/Owner always see
+// everyone, since they're the ones managing assignments. A Worker only ever
+// sees customers explicitly assigned to them, with no way to see anyone else's.
 function visibleCustomers(){
   if(!state.currentUser || state.currentUser.role!=='worker') return state.customers;
-  if(state.custScope==='all') return state.customers;
   return state.customers.filter(isCustAssignedToMe);
 }
 function allOpenTickets(customers){
@@ -1233,27 +1231,22 @@ function renderVisitForm(container){
   state.hasUnsavedDraft = false; // leaving Office abandons any unsaved Users/Customers draft
   const mode = state.visitMode || 'new';
   const isWorker = state.currentUser && state.currentUser.role==='worker';
-  const showScopeToggle = isWorker && (mode==='new' || mode==='deliver');
+  const showScopeLabel = isWorker && (mode==='new' || mode==='deliver');
   const mineCount = state.customers.filter(isCustAssignedToMe).length;
-  const allCount = state.customers.length;
   container.innerHTML = `
     <div class="office-tabs" style="margin-bottom:20px;">
       <button data-mode="new" class="${mode==='new'?'active':''}">New pickup</button>
       <button data-mode="deliver" class="${mode==='deliver'?'active':''}">Complete a delivery</button>
       <button data-mode="recent" class="${mode==='recent'?'active':''}">Recent tickets</button>
     </div>
-    ${showScopeToggle ? `
-    <div class="row2" style="margin-bottom:18px;">
-      <button data-scope="mine" class="btn-outline" style="${state.custScope==='mine'?'background:var(--teal-800);color:#fff;border-color:var(--teal-800);':''}">👤 My Customers (${mineCount})</button>
-      <button data-scope="all" class="btn-outline" style="${state.custScope==='all'?'background:var(--teal-800);color:#fff;border-color:var(--teal-800);':''}">👥 All Customers (${allCount})</button>
+    ${showScopeLabel ? `
+    <div style="margin-bottom:18px;padding:10px 16px;border-radius:10px;background:var(--teal-50);border:1px solid var(--teal-100);font-size:13px;font-weight:800;color:var(--teal-800);">
+      👤 My Customers (${mineCount})
     </div>` : ''}
     <div id="visit-body"></div>
   `;
   container.querySelectorAll('[data-mode]').forEach(b=>{
     b.addEventListener('click', ()=>{ state.visitMode = b.dataset.mode; renderVisitForm(container); });
-  });
-  container.querySelectorAll('[data-scope]').forEach(b=>{
-    b.addEventListener('click', ()=>{ state.custScope = b.dataset.scope; renderVisitForm(container); });
   });
   const body = document.getElementById('visit-body');
   if(mode==='new') renderNewPickup(body);
@@ -1372,7 +1365,7 @@ function renderNewPickup(container){
   const f = state.pickupForm;
   const custOptions = visibleCustomers();
   if(!custOptions.length){
-    container.innerHTML = `<div class="empty-note">You don't have any assigned customers yet. Ask your Owner/Admin to assign some in Office → Customers, or switch to "All Customers" above.</div>`;
+    container.innerHTML = `<div class="empty-note">You don't have any assigned customers yet. Ask your Owner/Admin to assign some to you in Office → Customers.</div>`;
     return;
   }
   if(!custOptions.find(c=>c.id===f.custId)) f.custId = custOptions[0]?.id || '';
