@@ -3610,8 +3610,23 @@ function renderAdminTab(box){
     if(!cust.assignedWorkers) cust.assignedWorkers = [];
 
     const workerAccounts = state.users.filter(u=>u.role==='worker' && u.active);
+    const assignedNames = workerAccounts.filter(w=>cust.assignedWorkers.indexOf(w.id)>-1).map(w=>w.name);
 
     editorBox.innerHTML = `
+      <div class="cust-card" style="border:2px solid var(--teal-300);background:var(--teal-50);">
+        <div class="section-label"><span>👤 Assigned workers for ${esc(cust.name)}</span></div>
+        <div style="font-size:13px;font-weight:800;margin-bottom:10px;color:${assignedNames.length?'var(--teal-800)':'var(--stone-500)'};">
+          ${assignedNames.length ? `Currently assigned to: ${assignedNames.map(esc).join(', ')}` : `Unassigned — visible to every worker`}
+        </div>
+        <div style="font-size:11px;color:var(--stone-500);margin-bottom:10px;">Tap a worker to assign or unassign them. Multiple workers can be assigned to one customer. Leave everyone off to keep this customer visible to the whole team.</div>
+        <div id="ad-workers" style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${workerAccounts.length ? workerAccounts.map(w=>{
+            const on = cust.assignedWorkers.indexOf(w.id)>-1;
+            return `<button type="button" data-workerid="${w.id}" style="padding:10px 16px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;border:2px solid ${on?'var(--teal-800)':'var(--stone-300)'};background:${on?'var(--teal-800)':'#fff'};color:${on?'#fff':'var(--stone-700)'};">${on?'✓ ':''}${esc(w.name)}</button>`;
+          }).join('') : `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">No worker accounts yet — add one in All Users first.</div>`}
+        </div>
+      </div>
+
       <div class="cust-card">
         <div class="section-label"><span>Customer details</span></div>
         <div class="row2">
@@ -3645,15 +3660,6 @@ function renderAdminTab(box){
           </div>
           <div></div>
         </div>`}
-        <div style="margin-top:10px;">
-          <label class="field-label">Assigned workers <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--stone-400);">(who normally handles this customer in Pickup &amp; Delivery — leave blank for "everyone")</span></label>
-          <div id="ad-workers" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
-            ${workerAccounts.length ? workerAccounts.map(w=>`
-              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;background:${cust.assignedWorkers.indexOf(w.id)>-1?'var(--teal-50)':'var(--stone-50)'};border:1px solid ${cust.assignedWorkers.indexOf(w.id)>-1?'var(--teal-300)':'var(--stone-200)'};border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;">
-                <input type="checkbox" data-workerid="${w.id}" ${cust.assignedWorkers.indexOf(w.id)>-1?'checked':''} style="width:auto;" /> ${esc(w.name)}
-              </label>`).join('') : `<div style="font-size:12px;color:var(--stone-400);font-style:italic;">No worker accounts yet.</div>`}
-          </div>
-        </div>
       </div>
 
       <div class="section-label" style="margin-top:8px;"><span>Editing: ${esc(cust.name)}</span><span style="font-weight:600;text-transform:none;letter-spacing:0;">5 sections · ★ = frequent (moves up) · 👁 = hidden from the field form</span></div>
@@ -3666,12 +3672,13 @@ function renderAdminTab(box){
     editorBox.querySelector('#ad-address').addEventListener('change', e=>{ cust.address = e.target.value.trim(); markDirty(); });
     const termsInput = editorBox.querySelector('#ad-terms');
     if(termsInput) termsInput.addEventListener('change', e=>{ cust.paymentTermsDays = Math.max(0, parseInt(e.target.value||'30',10)); markDirty(); });
-    editorBox.querySelectorAll('#ad-workers [data-workerid]').forEach(cb=>{
-      cb.addEventListener('change', e=>{
-        const wid = e.target.dataset.workerid;
-        if(e.target.checked){ if(cust.assignedWorkers.indexOf(wid)===-1) cust.assignedWorkers.push(wid); }
-        else { cust.assignedWorkers = cust.assignedWorkers.filter(x=>x!==wid); }
+    editorBox.querySelectorAll('#ad-workers [data-workerid]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const wid = btn.dataset.workerid;
+        if(cust.assignedWorkers.indexOf(wid)>-1){ cust.assignedWorkers = cust.assignedWorkers.filter(x=>x!==wid); }
+        else { cust.assignedWorkers.push(wid); }
         markDirty();
+        drawCustomerEditor(editorBox, cust);
       });
     });
 
